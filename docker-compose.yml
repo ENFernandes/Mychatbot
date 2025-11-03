@@ -1,0 +1,41 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: chatbot_postgres
+    environment:
+      POSTGRES_DB: chatbot
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: chatbot_backend
+    depends_on:
+      - postgres
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgres://chatbot:chatbot@postgres:5432/chatbot
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-dev-encryption-key-32-bytes-change-me}
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build: ./frontend
+    container_name: chatbot_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  pgdata:
+
+
