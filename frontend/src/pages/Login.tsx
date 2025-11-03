@@ -21,12 +21,18 @@ const Login: React.FC<{ onSwitch: (page: 'register' | 'recover') => void }>
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !loading) {
+      submit();
+    }
+  };
+
   return (
     <div style={{ maxWidth: 360, margin: '40px auto', background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
       <h2 style={{ marginBottom: 12 }}>Login</h2>
       {error && <div style={{ color: '#b00020', marginBottom: 8 }}>{error}</div>}
-      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 8 }} />
-      <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 12 }} />
+      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 8 }} />
+      <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 12 }} />
       <button onClick={submit} disabled={loading} style={{ width: '100%', padding: 10, background: '#007bff', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Login</button>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
         <button onClick={() => onSwitch('recover')} style={{ background: 'transparent', border: 'none', color: '#007bff', cursor: 'pointer' }}>Recover password</button>
