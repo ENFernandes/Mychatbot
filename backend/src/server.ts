@@ -81,6 +81,19 @@ app.get('/api/health', (req: Request, res: Response) => {
   res.json({ status: 'ok' });
 });
 
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error('Erro não tratado:', err);
+  res.status(500).json({ error: 'erro interno do servidor' });
+});
+
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('Unhandled Rejection em:', promise, 'razão:', reason);
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught Exception:', error);
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
