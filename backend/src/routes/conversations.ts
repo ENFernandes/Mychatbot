@@ -45,7 +45,7 @@ router.get('/:id/messages', async (req: Request, res: Response) => {
   const conv = await pool.query('SELECT 1 FROM conversations WHERE id=$1 AND user_id=$2', [id, userId]);
   if (conv.rowCount === 0) return res.status(404).json({ error: 'conversation not found' });
   const result = await pool.query(
-    'SELECT id, role, content, created_at FROM messages WHERE conversation_id=$1 ORDER BY created_at',
+    'SELECT id, role, content, provider, created_at FROM messages WHERE conversation_id=$1 ORDER BY created_at',
     [id]
   );
   res.json({ messages: result.rows });
@@ -54,12 +54,12 @@ router.get('/:id/messages', async (req: Request, res: Response) => {
 router.post('/:id/messages', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
   const { id } = req.params;
-  const { role, content } = req.body as { role: 'user' | 'assistant'; content: string };
+  const { role, content, provider } = req.body as { role: 'user' | 'assistant'; content: string; provider?: 'openai' | 'gemini' | 'claude' };
   const conv = await pool.query('SELECT 1 FROM conversations WHERE id=$1 AND user_id=$2', [id, userId]);
   if (conv.rowCount === 0) return res.status(404).json({ error: 'conversation not found' });
   const result = await pool.query(
-    'INSERT INTO messages(conversation_id, role, content) VALUES($1,$2,$3) RETURNING id, role, content, created_at',
-    [id, role, content]
+    'INSERT INTO messages(conversation_id, role, content, provider) VALUES($1,$2,$3,$4) RETURNING id, role, content, provider, created_at',
+    [id, role, content, provider || null]
   );
   await pool.query('UPDATE conversations SET updated_at=now() WHERE id=$1', [id]);
   res.json(result.rows[0]);

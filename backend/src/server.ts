@@ -31,17 +31,17 @@ app.post('/api/chat', requireAuth, async (req: Request, res: Response) => {
     const { message, messages, provider, model } = req.body as any;
 
     if (!message && (!messages || messages.length === 0)) {
-      return res.status(400).json({ error: 'Mensagem é obrigatória' });
+      return res.status(400).json({ error: 'Message is required' });
     }
     const history = (messages && messages.length > 0) ? messages : [{ role: 'user', content: message }];
 
-    // Buscar key encriptada do user
+    // Fetch encrypted key from user
     const keyResult = await pool.query(
       'SELECT encrypted_key, iv FROM user_api_keys WHERE user_id=$1 AND provider=$2',
       [userId, provider]
     );
     if (keyResult.rowCount === 0) {
-      return res.status(400).json({ error: `API key ${provider} não configurada` });
+      return res.status(400).json({ error: `API key ${provider} not configured` });
     }
     const { encrypted_key, iv } = keyResult.rows[0];
     const decryptedKey = decrypt(encrypted_key, iv);
@@ -61,18 +61,18 @@ app.post('/api/chat', requireAuth, async (req: Request, res: Response) => {
       return res.json(result);
     }
 
-    return res.status(400).json({ error: 'provider inválido' });
+    return res.status(400).json({ error: 'invalid provider' });
   } catch (error: any) {
-    console.error('Erro ao processar chat:', error);
+    console.error('Error processing chat:', error);
 
     if (error instanceof OpenAI.APIError) {
       return res.status(error.status || 500).json({
-        error: error.message || 'Erro ao comunicar com a API OpenAI',
+        error: error.message || 'Error communicating with OpenAI API',
       });
     }
 
     res.status(500).json({
-      error: 'Erro interno do servidor',
+      error: 'Internal server error',
     });
   }
 });
@@ -82,12 +82,12 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('Erro não tratado:', err);
-  res.status(500).json({ error: 'erro interno do servidor' });
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'internal server error' });
 });
 
 process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
-  console.error('Unhandled Rejection em:', promise, 'razão:', reason);
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 process.on('uncaughtException', (error: Error) => {
@@ -95,7 +95,7 @@ process.on('uncaughtException', (error: Error) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
 
 async function initializeSchemaWithRetry(maxAttempts = 20, delayMs = 1000) {
@@ -105,14 +105,14 @@ async function initializeSchemaWithRetry(maxAttempts = 20, delayMs = 1000) {
     attempt += 1;
     try {
       await initializeSchema();
-      console.log('Base de dados preparada');
+      console.log('Database initialized');
       break;
     } catch (err) {
       if (attempt >= maxAttempts) {
-        console.error('Erro ao inicializar BD após várias tentativas', err);
+        console.error('Error initializing database after multiple attempts', err);
         break;
       }
-      console.warn(`BD indisponível (tentativa ${attempt}/${maxAttempts}). A tentar novamente em ${delayMs}ms...`);
+      console.warn(`Database unavailable (attempt ${attempt}/${maxAttempts}). Retrying in ${delayMs}ms...`);
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }

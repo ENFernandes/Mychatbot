@@ -1,0 +1,129 @@
+.app-header {
+  position: relative;
+  width: 100%;
+  border-bottom: 1px solid var(--color-border);
+  transition: all 0.15s ease;
+  background: var(--color-surface);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  flex-shrink: 0;
+}
+
+[data-theme="dark"] .app-header {
+  background: rgba(10, 10, 10, 0.3);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.header-nav {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.header-logo {
+  font-size: 24px;
+}
+
+.header-name {
+  color: var(--color-text);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header-nav {
+    padding: 12px 16px;
+  }
+
+  .header-brand {
+    font-size: 18px;
+  }
+
+  .header-logo {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-nav {
+    padding: 10px 12px;
+  }
+
+  .header-brand {
+    font-size: 16px;
+    gap: 6px;
+  }
+
+  .header-logo {
+    font-size: 18px;
+  }
+}
+
+/* App container styles */
+.app-container-authenticated {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-container-authenticated.settings-view {
+  height: auto;
+  min-height: 100vh;
+  overflow: auto;
+}
+
+.app-container-landing {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.main-authenticated {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-authenticated.settings-view {
+  min-height: auto;
+  overflow: auto;
+}
+
+.main-landing {
+  width: 100%;
+  min-height: auto;
+  overflow: visible;
+}
+
+/* Ensure proper layout on all screen sizes */
+body {
+  overflow-x: hidden;
+}
+
+/* When user is authenticated, prevent scroll on body */
+body:has(header.app-header) {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* When not authenticated (landing page), allow scroll */
+body:not(:has(header.app-header)) {
+  overflow-y: auto;
+  height: auto;
+}
+

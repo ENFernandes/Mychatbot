@@ -9,8 +9,8 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const provider = (req.query.provider as string) || '';
     const apiKey = (req.headers['x-api-key'] as string) || (req.query.apiKey as string) || '';
-    if (!provider) return res.status(400).json({ error: 'provider é obrigatório' });
-    if (!apiKey) return res.status(400).json({ error: 'x-api-key é obrigatório' });
+    if (!provider) return res.status(400).json({ error: 'provider is required' });
+    if (!apiKey) return res.status(400).json({ error: 'x-api-key is required' });
 
     let models: string[] = [];
     if (provider === 'openai') {
@@ -20,13 +20,13 @@ router.get('/', async (req: Request, res: Response) => {
     } else if (provider === 'claude') {
       models = await claudeListModels(apiKey);
     } else {
-      return res.status(400).json({ error: 'provider inválido' });
+      return res.status(400).json({ error: 'invalid provider' });
     }
 
     res.json({ models });
   } catch (err: any) {
-    console.error('Erro ao listar modelos:', err);
-    res.status(500).json({ error: err?.message || 'Erro ao listar modelos' });
+    console.error('Error listing models:', err);
+    res.status(500).json({ error: err?.message || 'Error listing models' });
   }
 });
 

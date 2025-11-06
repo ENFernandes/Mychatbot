@@ -1,9 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
+import './Chat.css';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  provider?: 'openai' | 'gemini' | 'claude';
 }
 
 interface ChatProps {
@@ -14,15 +17,28 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange }) => {
+  const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Provider icons mapping
+  const getProviderIcon = (provider?: 'openai' | 'gemini' | 'claude'): string => {
+    const icons: Record<string, string> = {
+      openai: '🤖',
+      gemini: '✨',
+      claude: '🧠',
+    };
+    return provider ? (icons[provider] || '🤖') : '🤖';
+  };
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   useEffect(() => {
     const loadMessages = async () => {
@@ -32,7 +48,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       }
       try {
         const { data } = await api.get(`/conversations/${conversationId}/messages`);
-        setMessages((data.messages || []).map((m: any) => ({ role: m.role, content: m.content })));
+        setMessages((data.messages || []).map((m: any) => ({ role: m.role, content: m.content, provider: m.provider })));
       } catch (e) {
         console.error('Error loading messages:', e);
         setMessages([]);
@@ -41,8 +57,15 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     loadMessages();
   }, [conversationId]);
 
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [inputMessage]);
+
   const sendMessage = async () => {
-    if (!inputMessage.trim()) {
+    if (!inputMessage.trim() || isLoading) {
       return;
     }
 
@@ -56,6 +79,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     setInputMessage('');
     setError(null);
     setIsLoading(true);
+    setIsTyping(true);
 
     try {
       const response = await api.post('/chat', {
@@ -70,24 +94,24 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.data.message,
+        provider: provider,
       };
 
       setMessages([...newMessages, assistantMessage]);
 
-      // Persistence: create conversation if it doesn't exist and save messages
+      // Persistence
       try {
         let convId = conversationId;
         if (!convId) {
           const { data } = await api.post('/conversations', {});
           convId = data.id;
           onConversationChange(convId);
-          // Trigger reload of conversations list by emitting custom event
           window.dispatchEvent(new CustomEvent('conversation-created'));
         }
         await api.post(`/conversations/${convId}/messages`, { role: 'user', content: userMessage.content });
-        await api.post(`/conversations/${convId}/messages`, { role: 'assistant', content: assistantMessage.content });
+        await api.post(`/conversations/${convId}/messages`, { role: 'assistant', content: assistantMessage.content, provider: provider });
       } catch (_) {
-        // Ignore persistence failures to avoid blocking UX
+        // Ignore persistence failures
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
@@ -97,6 +121,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       setMessages(newMessages.slice(0, -1));
     } finally {
       setIsLoading(false);
+      setIsTyping(false);
     }
   };
 
@@ -109,7 +134,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
 
   const formatBoldUnderline = (segment: string, keyBase: number) => {
     const parts: React.ReactNode[] = [];
-    const regex = /(\*\*[^*]+\*\*)|(\_\_[^_]+\_\_)/g; // **bold** or __underline__
+    const regex = /(\*\*[^*]+\*\*)|(\_\_[^_]+\_\_)/g;
     let match: RegExpExecArray | null;
     let lastIndex = 0;
     while ((match = regex.exec(segment)) !== null) {
@@ -121,7 +146,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         parts.push(<strong key={`${keyBase}-${parts.length}`}>{token.slice(2, -2)}</strong>);
       } else if (token.startsWith('__')) {
         parts.push(
-          <span key={`${keyBase}-${parts.length}`} style={{ textDecoration: 'underline' }}>
+          <span key={`${keyBase}-${parts.length}`} className="underline">
             {token.slice(2, -2)}
           </span>
         );
@@ -136,7 +161,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
 
   const inlineFormat = (text: string) => {
     const out: React.ReactNode[] = [];
-    const linkRegex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))|((https?:\/\/[^\s)]+))/g; // [text](url) or raw url
+    const linkRegex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\))|((https?:\/\/[^\s)]+))/g;
     let match: RegExpExecArray | null;
     let lastIndex = 0;
     while ((match = linkRegex.exec(text)) !== null) {
@@ -164,7 +189,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
           href={url}
           target="_blank"
           rel="noreferrer"
-          style={{ color: '#0d6efd', textDecoration: 'underline' }}
+          className="message-link"
         >
           {label}
         </a>
@@ -185,10 +210,8 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     if (headingMatch) {
       const level = headingMatch[1].length;
       const text = headingMatch[2];
-      const color = level === 1 ? '#0d6efd' : level === 2 ? '#20c997' : '#6f42c1';
-      const size = level === 1 ? 18 : level === 2 ? 16 : 15;
       return (
-        <div key={idx} style={{ marginBottom: 10, color, fontWeight: 700, fontSize: size }}>
+        <div key={idx} className={`message-heading message-heading-${level}`}>
           {inlineFormat(text)}
         </div>
       );
@@ -196,97 +219,62 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
 
     if (isList) {
       return (
-        <ul key={idx} style={{ margin: '6px 0 10px 18px' }}>
+        <ul key={idx} className="message-list">
           {lines.map((l, i) => (
-            <li key={i} style={{ lineHeight: 1.5 }}>{inlineFormat(l.replace(/^[-\*]\s+/, ''))}</li>
+            <li key={i}>{inlineFormat(l.replace(/^[-\*]\s+/, ''))}</li>
           ))}
         </ul>
       );
     }
 
     return (
-      <div key={idx} style={{ marginBottom: 10, lineHeight: 1.6 }}>{inlineFormat(block)}</div>
+      <div key={idx} className="message-paragraph">{inlineFormat(block)}</div>
     );
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '20px',
-          backgroundColor: '#f9f9f9',
-        }}
-      >
+    <div className="chat-container">
+      <div className="chat-messages">
         {messages.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              color: '#666',
-              marginTop: '50px',
-            }}
-          >
-            <p>Start a conversation by sending a message</p>
+          <div className="chat-empty">
+            <div className="empty-icon">💬</div>
+            <h2 className="empty-title">Start a conversation</h2>
+            <p className="empty-description">
+              Send a message to begin chatting with {model}
+            </p>
           </div>
         ) : (
           messages.map((msg, index) => (
             <div
               key={index}
-              style={{
-                marginBottom: '15px',
-                display: 'flex',
-                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-              }}
+              className={`message-wrapper message-${msg.role}`}
             >
-              <div
-                style={{
-                  maxWidth: '70%',
-                  padding: '12px 16px',
-                  borderRadius: '18px',
-                  backgroundColor: msg.role === 'user' ? '#007bff' : '#e9ecef',
-                  color: msg.role === 'user' ? 'white' : '#333',
-                  whiteSpace: 'pre-wrap',
-                  wordWrap: 'break-word',
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {msg.role === 'assistant'
-                  ? msg.content
-                      .split('\n\n')
-                      .map((block, i) => renderAssistantBlock(block, i))
-                  : msg.content}
+              <div className="message-avatar">
+                {msg.role === 'user' ? '👤' : getProviderIcon(msg.provider || provider)}
+              </div>
+              <div className="message-content">
+                <div className="message-bubble">
+                  {msg.role === 'assistant'
+                    ? msg.content
+                        .split('\n\n')
+                        .map((block, i) => renderAssistantBlock(block, i))
+                    : msg.content}
+                </div>
               </div>
             </div>
           ))
         )}
         {isLoading && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-start',
-              marginBottom: '15px',
-            }}
-          >
-            <div
-              style={{
-                padding: '12px 16px',
-                borderRadius: '18px',
-                backgroundColor: '#e9ecef',
-                color: '#666',
-              }}
-            >
-              Thinking...
+          <div className="message-wrapper message-assistant">
+            <div className="message-avatar">{getProviderIcon(provider)}</div>
+            <div className="message-content">
+              <div className="message-bubble message-typing">
+                <div className="typing-indicator">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -294,61 +282,47 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       </div>
 
       {error && (
-        <div
-          style={{
-            padding: '10px 20px',
-            backgroundColor: '#f8d7da',
-            color: '#721c24',
-            borderTop: '1px solid #f5c6cb',
-          }}
-        >
-          {error}
+        <div className="chat-error">
+          <span className="error-icon">⚠️</span>
+          <span className="error-message">{error}</span>
         </div>
       )}
 
-      <div
-        style={{
-          padding: '15px',
-          borderTop: '1px solid #ddd',
-          display: 'flex',
-          gap: '10px',
-        }}
-      >
-        <textarea
-          value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type your message..."
-          disabled={isLoading}
-          style={{
-            flex: 1,
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '12px',
-            outline: 'none',
-            minHeight: '60px',
-            maxHeight: '200px',
-            resize: 'vertical',
-          }}
-        />
-        <button
-          onClick={sendMessage}
-          disabled={isLoading || !inputMessage.trim()}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: !isLoading && inputMessage.trim() ? '#007bff' : '#ccc',
-            color: 'white',
-            border: 'none',
-            borderRadius: '20px',
-            cursor: !isLoading && inputMessage.trim() ? 'pointer' : 'not-allowed',
-          }}
-        >
-          Send
-        </button>
+      <div className="chat-input-container">
+        <div className="chat-input-wrapper">
+          <textarea
+            ref={textareaRef}
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your message..."
+            disabled={isLoading}
+            className="chat-input"
+            rows={1}
+          />
+          <button
+            onClick={sendMessage}
+            disabled={isLoading || !inputMessage.trim()}
+            className="chat-send-button"
+            aria-label="Send message"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path
+                d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="chat-footer">
+          <span className="chat-shortcut">Press Enter to send, Shift+Enter for new line</span>
+        </div>
       </div>
     </div>
   );
 };
 
 export default Chat;
-

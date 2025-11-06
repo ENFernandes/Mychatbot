@@ -16,7 +16,7 @@ function signAccess(user: { id: string; email: string }) {
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, password, name } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'email e password são obrigatórios' });
+    if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       'INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name',
@@ -26,8 +26,8 @@ router.post('/register', async (req: Request, res: Response) => {
     const token = signAccess(user);
     res.json({ token, user });
   } catch (e: any) {
-    if (e?.code === '23505') return res.status(409).json({ error: 'email já existe' });
-    res.status(500).json({ error: 'erro ao registar' });
+    if (e?.code === '23505') return res.status(409).json({ error: 'email already exists' });
+    res.status(500).json({ error: 'error registering user' });
   }
 });
 
@@ -36,13 +36,13 @@ router.post('/login', async (req: Request, res: Response) => {
     const { email, password } = req.body;
     const result = await pool.query('SELECT id, email, password_hash, name FROM users WHERE email=$1', [email]);
     const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'credenciais inválidas' });
+    if (!user) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'credenciais inválidas' });
+    if (!ok) return res.status(401).json({ error: 'invalid credentials' });
     const token = signAccess(user);
     res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   } catch (e) {
-    res.status(500).json({ error: 'erro ao autenticar' });
+    res.status(500).json({ error: 'authentication error' });
   }
 });
 
@@ -53,7 +53,7 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const newToken = jwt.sign({ sub: payload.sub, email: payload.email }, JWT_SECRET, { expiresIn: ACCESS_EXPIRES });
     res.json({ token: newToken });
   } catch (e) {
-    res.status(401).json({ error: 'token inválido' });
+    res.status(401).json({ error: 'invalid token' });
   }
 });
 
@@ -62,7 +62,7 @@ router.post('/recover', async (req: Request, res: Response) => {
     const { email } = req.body;
     const result = await pool.query('SELECT id FROM users WHERE email=$1', [email]);
     if (result.rowCount === 0) {
-      // Não revelar se email existe
+      // Don't reveal if email exists
       return res.json({ ok: true });
     }
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -71,10 +71,10 @@ router.post('/recover', async (req: Request, res: Response) => {
       'UPDATE users SET reset_token=$1, reset_token_expires=$2 WHERE email=$3',
       [resetToken, expires, email]
     );
-    // Em produção, enviar email aqui com link de reset
+    // In production, send email here with reset link
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: 'erro ao processar' });
+    res.status(500).json({ error: 'error processing request' });
   }
 });
 
@@ -85,7 +85,7 @@ router.post('/reset', async (req: Request, res: Response) => {
       'SELECT id FROM users WHERE reset_token=$1 AND reset_token_expires > now()',
       [token]
     );
-    if (result.rowCount === 0) return res.status(400).json({ error: 'token inválido ou expirado' });
+    if (result.rowCount === 0) return res.status(400).json({ error: 'invalid or expired token' });
     const hash = await bcrypt.hash(password, 10);
     await pool.query(
       'UPDATE users SET password_hash=$1, reset_token=NULL, reset_token_expires=NULL WHERE reset_token=$2',
@@ -93,7 +93,7 @@ router.post('/reset', async (req: Request, res: Response) => {
     );
     res.json({ ok: true });
   } catch (e) {
-    res.status(500).json({ error: 'erro ao resetar' });
+    res.status(500).json({ error: 'error resetting password' });
   }
 });
 

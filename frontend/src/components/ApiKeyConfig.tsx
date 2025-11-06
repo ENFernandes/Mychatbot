@@ -41,7 +41,7 @@ const ApiKeyConfig: React.FC<ApiKeyConfigProps> = ({ apiKey, onApiKeyChange }) =
           cursor: 'pointer',
         }}
       >
-        {apiKey ? 'Alterar API Key' : 'Configurar API Key'}
+        {apiKey ? 'Change API Key' : 'Configure API Key'}
       </button>
 
       {isOpen && (
@@ -82,7 +82,7 @@ const ApiKeyConfig: React.FC<ApiKeyConfigProps> = ({ apiKey, onApiKeyChange }) =
                 cursor: 'pointer',
               }}
             >
-              Guardar
+              Save
             </button>
             {apiKey && (
               <button
@@ -96,7 +96,7 @@ const ApiKeyConfig: React.FC<ApiKeyConfigProps> = ({ apiKey, onApiKeyChange }) =
                   cursor: 'pointer',
                 }}
               >
-                Limpar
+                Clear
               </button>
             )}
             <button
@@ -110,12 +110,12 @@ const ApiKeyConfig: React.FC<ApiKeyConfigProps> = ({ apiKey, onApiKeyChange }) =
                 cursor: 'pointer',
               }}
             >
-              Cancelar
+              Cancel
             </button>
           </div>
           {apiKey && (
             <p style={{ marginTop: '10px', fontSize: '12px', color: '#28a745' }}>
-              API Key configurada ✓
+              API Key configured ✓
             </p>
           )}
         </div>

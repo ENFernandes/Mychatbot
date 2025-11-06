@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import Chat from './components/Chat';
 import ProviderSelector from './components/ProviderSelector';
-import ModelSelect from './components/ModelSelect';
 import Settings from './pages/Settings';
-import ConversationSidebar from './components/ConversationSidebar';
+import ChatSidebar from './components/ChatSidebar';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import RecoverPassword from './pages/RecoverPassword';
+import { ThemeProvider } from './context/ThemeContext';
+import Landing from './pages/Landing';
+import LoginModal from './components/LoginModal';
+import RegisterModal from './components/RegisterModal';
 import { api } from './services/api';
+import './App.css';
 
 const AppShell: React.FC = () => {
   const { token } = useAuth();
@@ -16,9 +17,51 @@ const AppShell: React.FC = () => {
   const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude'>('openai');
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string>('');
-  const [authView, setAuthView] = useState<'login' | 'register' | 'recover'>('login');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<('openai' | 'gemini' | 'claude')[]>([]);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Close modals when user successfully authenticates
+  useEffect(() => {
+    if (token) {
+      setIsLoginModalOpen(false);
+      setIsRegisterModalOpen(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    const body = document.body;
+    const html = document.documentElement;
+
+    if (token) {
+      body.style.overflow = 'hidden';
+      body.style.height = '100vh';
+      html.style.overflow = 'hidden';
+      html.style.height = '100vh';
+    } else {
+      body.style.overflow = 'auto';
+      body.style.height = 'auto';
+      html.style.overflow = 'auto';
+      html.style.height = 'auto';
+    }
+
+    return () => {
+      body.style.overflow = '';
+      body.style.height = '';
+      html.style.overflow = '';
+      html.style.height = '';
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -101,93 +144,119 @@ const AppShell: React.FC = () => {
     fetchModels();
   }, [provider, token, availableProviders]);
 
-  return (
-    <div
-      style={{
-        width: '100%',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '20px',
-        maxWidth: '1200px',
-        margin: '0 auto',
-      }}
-    >
-      <header
-        style={{
-          marginBottom: '20px',
-          textAlign: 'center',
+  const modals = (
+    <>
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => {
+          setIsLoginModalOpen(false);
         }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-          <h1 style={{ color: '#333', margin: 0 }}>MyChatBots</h1>
-          {token && <LogoutButton />}
-        </div>
-        {token && (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '10px' }}>
-            <button onClick={() => setView('chat')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: view==='chat'?'#007bff':'#fff', color: view==='chat'?'#fff':'#333' }}>Chat</button>
-            <button onClick={() => setView('settings')} style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ddd', background: view==='settings'?'#007bff':'#fff', color: view==='settings'?'#fff':'#333' }}>Settings</button>
+        onSwitch={(page) => {
+          if (page === 'register') {
+            setIsLoginModalOpen(false);
+            setIsRegisterModalOpen(true);
+          }
+        }}
+      />
+      <RegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => {
+          setIsRegisterModalOpen(false);
+        }}
+        onSwitch={(page) => {
+          if (page === 'login') {
+            setIsRegisterModalOpen(false);
+            setIsLoginModalOpen(true);
+          }
+        }}
+      />
+    </>
+  );
+
+  if (!token) {
+    return (
+      <>
+        <Landing
+          onOpenLogin={() => {
+            setIsLoginModalOpen(true);
+          }}
+          onOpenRegister={() => {
+            setIsRegisterModalOpen(true);
+          }}
+        />
+        {modals}
+      </>
+    );
+  }
+
+  const isSettingsView = view === 'settings';
+  const containerClassName = `app-container-authenticated${isSettingsView ? ' settings-view' : ''}`;
+  const mainClassName = `main-authenticated${isSettingsView ? ' settings-view' : ''}`;
+
+  return (
+    <div className={containerClassName}>
+      <header className="app-header">
+        <nav className="header-nav">
+          <div className="header-brand">
+            <span className="header-logo">💬</span>
+            <span className="header-name">MyChatBots</span>
           </div>
-        )}
-        {view === 'chat' && availableProviders.length > 0 && (
-          <>
-            <ProviderSelector 
-              provider={provider} 
-              onChange={(p) => setProvider(p)}
-              availableProviders={availableProviders}
-            />
-            <ModelSelect models={models} value={model} onChange={setModel} />
-          </>
-        )}
+        </nav>
       </header>
 
-      <main style={{ flex: 1, minHeight: 0 }}>
-        <AuthGate
-          fallback={
-            authView === 'login' ? (
-              <Login onSwitch={(p) => setAuthView(p)} />
-            ) : authView === 'register' ? (
-              <Register onSwitch={() => setAuthView('login')} />
-            ) : (
-              <RecoverPassword onSwitch={() => setAuthView('login')} />
-            )
-          }
-        >
-          {view === 'chat' ? (
-            <div style={{ display: 'flex', height: '100%', gap: '12px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+      <main className={mainClassName}>
+        {view === 'chat' ? (
+          <div style={{ display: 'flex', height: '100%', gap: 0, flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', minHeight: 0 }}>
+            <ChatSidebar 
+              activeId={activeConversationId} 
+              onSelect={setActiveConversationId}
+              provider={provider}
+              model={model}
+              onModelChange={setModel}
+              models={models}
+              onSettingsClick={() => setView('settings')}
+            />
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+              {availableProviders.length > 0 && (
+                <div style={{ 
+                  padding: isMobile ? '10px 16px' : '12px 20px', 
+                  borderBottom: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  flexShrink: 0,
+                  position: 'relative',
+                  zIndex: 10
+                }}>
+                  <ProviderSelector 
+                    provider={provider} 
+                    onChange={(p) => setProvider(p)}
+                    availableProviders={availableProviders}
+                  />
+                </div>
+              )}
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} />
               </div>
-              <ConversationSidebar activeId={activeConversationId} onSelect={setActiveConversationId} />
             </div>
-          ) : (
-            <Settings />
-          )}
-        </AuthGate>
+          </div>
+        ) : (
+          <Settings onBackToChat={() => setView('chat')} />
+        )}
       </main>
+
+      {modals}
     </div>
   );
 };
 
-const LogoutButton: React.FC = () => {
-  const { logout } = useAuth();
-  return (
-    <button onClick={logout} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #ddd', background: '#fff', color: '#dc3545', cursor: 'pointer' }}>
-      Logout
-    </button>
-  );
-};
-
-const AuthGate: React.FC<{ children: React.ReactNode; fallback: React.ReactNode }> = ({ children, fallback }) => {
-  const { token } = useAuth();
-  if (!token) return <>{fallback}</>;
-  return <>{children}</>;
-};
-
 const App: React.FC = () => (
-  <AuthProvider>
-    <AppShell />
-  </AuthProvider>
+  <ThemeProvider>
+    <AuthProvider>
+      <AppShell />
+    </AuthProvider>
+  </ThemeProvider>
 );
 
 export default App;

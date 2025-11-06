@@ -13,8 +13,8 @@ router.get('/', async (req: Request, res: Response) => {
     const result = await pool.query('SELECT provider, created_at, updated_at FROM user_api_keys WHERE user_id=$1', [userId]);
     res.json({ keys: result.rows });
   } catch (error: any) {
-    console.error('Erro ao buscar API keys:', error);
-    res.status(500).json({ error: 'erro interno do servidor' });
+    console.error('Error fetching API keys:', error);
+    res.status(500).json({ error: 'internal server error' });
   }
 });
 
@@ -22,11 +22,11 @@ router.put('/', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
     const { provider, apiKey } = req.body as { provider: 'openai' | 'gemini' | 'claude'; apiKey: string };
-    if (!provider || !apiKey) return res.status(400).json({ error: 'provider e apiKey são obrigatórios' });
+    if (!provider || !apiKey) return res.status(400).json({ error: 'provider and apiKey are required' });
     
     const userCheck = await pool.query('SELECT id FROM users WHERE id=$1', [userId]);
     if (userCheck.rowCount === 0) {
-      return res.status(401).json({ error: 'utilizador não encontrado' });
+      return res.status(401).json({ error: 'user not found' });
     }
     
     const { cipherText, iv } = encrypt(apiKey);
@@ -37,11 +37,11 @@ router.put('/', async (req: Request, res: Response) => {
     );
     res.json({ ok: true });
   } catch (error: any) {
-    console.error('Erro ao salvar API key:', error);
+    console.error('Error saving API key:', error);
     if (error.code === '23503') {
-      return res.status(400).json({ error: 'utilizador não encontrado' });
+      return res.status(400).json({ error: 'user not found' });
     }
-    res.status(500).json({ error: 'erro interno do servidor' });
+    res.status(500).json({ error: 'internal server error' });
   }
 });
 
@@ -50,12 +50,12 @@ router.get('/:provider/temp', async (req: Request, res: Response) => {
     const userId = (req as any).userId as string;
     const provider = req.params.provider;
     const result = await pool.query('SELECT encrypted_key, iv FROM user_api_keys WHERE user_id=$1 AND provider=$2', [userId, provider]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'key não encontrada' });
+    if (result.rowCount === 0) return res.status(404).json({ error: 'key not found' });
     const key = decrypt(result.rows[0].encrypted_key, result.rows[0].iv);
     res.json({ apiKey: key });
   } catch (error: any) {
-    console.error('Erro ao buscar API key temporária:', error);
-    res.status(500).json({ error: 'erro interno do servidor' });
+    console.error('Error fetching temporary API key:', error);
+    res.status(500).json({ error: 'internal server error' });
   }
 });
 
@@ -66,8 +66,8 @@ router.delete('/:provider', async (req: Request, res: Response) => {
     await pool.query('DELETE FROM user_api_keys WHERE user_id=$1 AND provider=$2', [userId, provider]);
     res.json({ ok: true });
   } catch (error: any) {
-    console.error('Erro ao deletar API key:', error);
-    res.status(500).json({ error: 'erro interno do servidor' });
+    console.error('Error deleting API key:', error);
+    res.status(500).json({ error: 'internal server error' });
   }
 });
 

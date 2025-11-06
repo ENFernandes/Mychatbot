@@ -52,7 +52,7 @@ export async function geminiListModels(apiKey: string): Promise<string[]> {
     .map((m: any) => m.name as string)
     .filter((id: string) => id && /gemini-/.test(id))
     .slice(0, 50);
-  // Não há created estável no v1beta; devolver os 3 primeiros relevantes
+  // No stable created field in v1beta; return the first 3 relevant ones
   return ids.slice(0, 3);
 }
 

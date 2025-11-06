@@ -28,15 +28,15 @@ const Login: React.FC<{ onSwitch: (page: 'register' | 'recover') => void }>
   };
 
   return (
-    <div style={{ maxWidth: 360, margin: '40px auto', background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-      <h2 style={{ marginBottom: 12 }}>Login</h2>
-      {error && <div style={{ color: '#b00020', marginBottom: 8 }}>{error}</div>}
-      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 8 }} />
-      <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 10, border: '1px solid #ddd', borderRadius: 6, marginBottom: 12 }} />
-      <button onClick={submit} disabled={loading} style={{ width: '100%', padding: 10, background: '#007bff', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Login</button>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
-        <button onClick={() => onSwitch('recover')} style={{ background: 'transparent', border: 'none', color: '#007bff', cursor: 'pointer' }}>Recover password</button>
-        <button onClick={() => onSwitch('register')} style={{ background: 'transparent', border: 'none', color: '#007bff', cursor: 'pointer' }}>Create account</button>
+    <div style={{ width: '100%' }}>
+      <h2 style={{ marginBottom: 12, fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>Login</h2>
+      {error && <div style={{ color: '#b00020', marginBottom: 8, padding: '8px 12px', background: '#ffebee', borderRadius: 6, fontSize: '14px' }}>{error}</div>}
+      <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 12, border: '1px solid #ddd', borderRadius: 8, marginBottom: 12, fontSize: '16px', outline: 'none', transition: 'border-color 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#007bff'} onBlur={(e) => e.target.style.borderColor = '#ddd'} />
+      <input placeholder="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 12, border: '1px solid #ddd', borderRadius: 8, marginBottom: 16, fontSize: '16px', outline: 'none', transition: 'border-color 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#007bff'} onBlur={(e) => e.target.style.borderColor = '#ddd'} />
+      <button onClick={submit} disabled={loading} style={{ width: '100%', padding: 12, background: loading ? '#ccc' : '#007bff', color: 'white', border: 'none', borderRadius: 8, cursor: loading ? 'not-allowed' : 'pointer', fontSize: '16px', fontWeight: 600, transition: 'background 0.2s' }}>Login</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
+        <button onClick={() => onSwitch('recover')} style={{ background: 'transparent', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', padding: '4px 0' }}>Recover password</button>
+        <button onClick={() => onSwitch('register')} style={{ background: 'transparent', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', padding: '4px 0' }}>Create account</button>
       </div>
     </div>
   );

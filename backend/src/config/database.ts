@@ -37,8 +37,22 @@ export async function initializeSchema() {
       conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
       role TEXT NOT NULL CHECK (role IN ('user','assistant')),
       content TEXT NOT NULL,
+      provider TEXT CHECK (provider IN ('openai','gemini','claude')),
       created_at TIMESTAMPTZ DEFAULT now()
     );
+  `);
+
+  // Add provider column if it doesn't exist (migration for existing databases)
+  await pool.query(`
+    DO $$ 
+    BEGIN 
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name='messages' AND column_name='provider'
+      ) THEN
+        ALTER TABLE messages ADD COLUMN provider TEXT CHECK (provider IN ('openai','gemini','claude'));
+      END IF;
+    END $$;
   `);
 
   await pool.query(`

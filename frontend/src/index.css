@@ -1,3 +1,77 @@
+:root {
+  /* Colors */
+  --color-primary: #667eea;
+  --color-primary-dark: #5568d3;
+  --color-secondary: #764ba2;
+  --color-success: #28a745;
+  --color-error: #b00020;
+  --color-warning: #ffc107;
+  --color-info: #17a2b8;
+  
+  /* Neutral colors - Light theme (default) */
+  --color-text: #1a1a1a;
+  --color-text-muted: #666;
+  --color-text-light: #999;
+  --color-bg: #ffffff;
+  --color-bg-light: #f8f9fa;
+  --color-bg-dark: #1a1a1a;
+  --color-border: #e0e0e0;
+  --color-border-light: #f0f0f0;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-3xl: 64px;
+  
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 50px;
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.2);
+  
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.3s ease;
+  --transition-slow: 0.5s ease;
+  
+  /* Z-index */
+  --z-modal: 1000;
+  --z-dropdown: 100;
+  --z-sticky: 50;
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  --color-text: #e0e0e0;
+  --color-text-muted: #a0a0a0;
+  --color-text-light: #808080;
+  --color-bg: #0a0a0a;
+  --color-bg-light: #151515;
+  --color-bg-dark: #1a1a1a;
+  --color-border: #2a2a2a;
+  --color-border-light: #1f1f1f;
+  --color-surface: #151515;
+  --color-surface-elevated: #1f1f1f;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.6);
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -10,11 +84,159 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
+  background-color: var(--color-bg-light);
+  color: var(--color-text);
+  line-height: 1.6;
+  transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 #root {
   width: 100%;
+  min-height: 100vh;
+}
+
+/* When not authenticated, allow root to expand */
+#root:not(:has(header.app-header)) {
+  height: auto;
+}
+
+html, body {
+  height: auto;
+  overflow-x: hidden;
+}
+
+/* When authenticated, prevent body scroll */
+body:has(header.app-header) {
   height: 100vh;
+  overflow: hidden;
+}
+
+/* When not authenticated, allow body to expand */
+body:not(:has(header.app-header)) {
+  height: auto;
+  overflow-y: auto;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Utility classes */
+.fade-in {
+  animation: fadeIn var(--transition-base);
+}
+
+.fade-in-up {
+  animation: fadeInUp var(--transition-base);
+}
+
+.fade-in-down {
+  animation: fadeInDown var(--transition-base);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg-light);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Selection styles */
+::selection {
+  background: var(--color-primary);
+  color: white;
 }
 
