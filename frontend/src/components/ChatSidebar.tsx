@@ -14,6 +14,7 @@ interface ChatSidebarProps {
   onModelChange: (model: string) => void;
   models: string[];
   onSettingsClick: () => void;
+  hasConfiguredClient: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({ 
@@ -23,7 +24,8 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   model,
   onModelChange,
   models,
-  onSettingsClick
+  onSettingsClick,
+  hasConfiguredClient
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { token, user, logout, plan } = useAuth();
@@ -89,6 +91,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   }, [isSettingsMenuOpen]);
 
   const createConversation = async () => {
+    if (!hasConfiguredClient) {
+      return;
+    }
     const { data } = await api.post('/conversations', {});
     await load();
     onSelect(data.id);
@@ -169,7 +174,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   return (
     <aside className="chat-sidebar">
       <div className="sidebar-header">
-        <button className="btn-new-chat" onClick={createConversation}>
+        <button 
+          className="btn-new-chat" 
+          onClick={createConversation}
+          disabled={!hasConfiguredClient}
+          title={hasConfiguredClient ? 'Start a new conversation' : 'Add an API key in Settings to start chatting'}
+        >
           <span className="icon-plus">+</span>
           <span>New Chat</span>
         </button>

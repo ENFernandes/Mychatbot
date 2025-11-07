@@ -22,6 +22,8 @@ Isto irá iniciar:
 - Backend na porta 3001
 - Frontend na porta 3000
 
+O serviço Postgres é construído a partir do Dockerfile em `database/`, que aplica automaticamente o esquema necessário na primeira inicialização.
+
 ### Opção 2: Desenvolvimento Local
 
 #### Backend
@@ -45,7 +47,8 @@ npm run dev
 Certifique-se que tem PostgreSQL rodando localmente ou use Docker:
 
 ```bash
-docker run -d -p 5432:5432 -e POSTGRES_DB=chatbot -e POSTGRES_USER=chatbot -e POSTGRES_PASSWORD=chatbot postgres:16
+docker build -t chatbot-postgres database
+docker run -d -p 5432:5432 chatbot-postgres
 ```
 
 ## Funcionalidades

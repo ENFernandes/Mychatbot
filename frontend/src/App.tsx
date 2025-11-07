@@ -206,7 +206,7 @@ const AppShell: React.FC = () => {
 
       <main className={mainClassName}>
         {view === 'chat' ? (
-          <div style={{ display: 'flex', height: '100%', gap: 0, flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden', minHeight: 0 }}>
+          <div style={{ display: 'flex', height: '100%', gap: 0, flexDirection: isMobile ? 'column' : 'row', overflow: 'visible', minHeight: 0 }}>
             <ChatSidebar 
               activeId={activeConversationId} 
               onSelect={setActiveConversationId}
@@ -215,6 +215,7 @@ const AppShell: React.FC = () => {
               onModelChange={setModel}
               models={models}
               onSettingsClick={() => setView('settings')}
+              hasConfiguredClient={availableProviders.length > 0}
             />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               {availableProviders.length > 0 && (

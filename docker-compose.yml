@@ -2,7 +2,8 @@ version: '3.9'
 
 services:
   postgres:
-    image: postgres:16
+    build: ./database
+    image: chatbot-postgres:latest
     container_name: chatbot_postgres
     environment:
       POSTGRES_DB: chatbot
