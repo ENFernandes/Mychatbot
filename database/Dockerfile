@@ -7,3 +7,7 @@ ENV POSTGRES_PASSWORD=chatbot
 COPY init.sql /docker-entrypoint-initdb.d/init.sql
 
 
+
+
+
+

@@ -9,8 +9,30 @@ const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-jwt-secret-change-me';
 const ACCESS_EXPIRES = '3h';
 
+type UserRow = {
+  id: string;
+  email: string;
+  name: string | null;
+  plan: 'trial' | 'pro';
+  subscription_status: string | null;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+};
+
 function signAccess(user: { id: string; email: string }) {
   return jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: ACCESS_EXPIRES });
+}
+
+function serializeUser(row: UserRow) {
+  return {
+    id: row.id,
+    email: row.email,
+    name: row.name,
+    plan: row.plan,
+    subscriptionStatus: row.subscription_status,
+    trialEndsAt: row.trial_ends_at,
+    currentPeriodEnd: row.current_period_end,
+  };
 }
 
 router.post('/register', async (req: Request, res: Response) => {
@@ -19,12 +41,14 @@ router.post('/register', async (req: Request, res: Response) => {
     if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      'INSERT INTO users(email, password_hash, name) VALUES($1,$2,$3) RETURNING id, email, name',
+      `INSERT INTO users(email, password_hash, name)
+       VALUES($1,$2,$3)
+       RETURNING id, email, name, plan, subscription_status, trial_ends_at, current_period_end`,
       [email, hash, name || null]
     );
-    const user = result.rows[0];
+    const user = result.rows[0] as UserRow;
     const token = signAccess(user);
-    res.json({ token, user });
+    res.json({ token, user: serializeUser(user) });
   } catch (e: any) {
     if (e?.code === '23505') return res.status(409).json({ error: 'email already exists' });
     res.status(500).json({ error: 'error registering user' });
@@ -34,13 +58,17 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
-    const result = await pool.query('SELECT id, email, password_hash, name FROM users WHERE email=$1', [email]);
-    const user = result.rows[0];
+    const result = await pool.query(
+      `SELECT id, email, password_hash, name, plan, subscription_status, trial_ends_at, current_period_end
+       FROM users WHERE email=$1`,
+      [email]
+    );
+    const user = result.rows[0] as UserRow & { password_hash: string };
     if (!user) return res.status(401).json({ error: 'invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = await bcrypt.compare(password, (user as any).password_hash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
     const token = signAccess(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.json({ token, user: serializeUser(user) });
   } catch (e) {
     res.status(500).json({ error: 'authentication error' });
   }

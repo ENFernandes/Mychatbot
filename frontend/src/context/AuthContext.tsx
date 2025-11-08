@@ -2,12 +2,24 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { api, setAccessToken, refreshToken } from '../services/api';
 
 type Plan = 'trial' | 'pro';
-type User = { id: string; email: string; name?: string; plan?: Plan } | null;
+type UserDetails = {
+  id: string;
+  email: string;
+  name?: string;
+  plan?: Plan;
+  subscriptionStatus?: string | null;
+  trialEndsAt?: string | null;
+  currentPeriodEnd?: string | null;
+};
+type User = UserDetails | null;
 
 type AuthContextType = {
   user: User;
   token: string | null;
   plan: Plan;
+  subscriptionStatus: string | null;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
   setPlan: (plan: Plan) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
@@ -19,10 +31,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem('access_token'));
-  const [plan, setPlan] = useState<Plan>(() => {
+  const [plan, setPlanState] = useState<Plan>(() => {
     const stored = localStorage.getItem('user_plan');
     return stored === 'pro' ? 'pro' : 'trial';
   });
+
+  const applyUser = useCallback((userData: UserDetails | null) => {
+    setUser(userData);
+    const effectivePlan = userData?.plan === 'pro' ? 'pro' : 'trial';
+    setPlanState(effectivePlan);
+  }, []);
 
   useEffect(() => {
     setAccessToken(token);
@@ -37,29 +55,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password });
     setToken(data.token);
-    setUser(data.user);
-    if (data.user?.plan) {
-      setPlan(data.user.plan === 'pro' ? 'pro' : 'trial');
-    } else {
-      setPlan('trial');
-    }
-  }, []);
+    applyUser(data.user ?? null);
+  }, [applyUser]);
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { data } = await api.post('/auth/register', { name, email, password });
     setToken(data.token);
-    setUser(data.user);
-    if (data.user?.plan) {
-      setPlan(data.user.plan === 'pro' ? 'pro' : 'trial');
-    } else {
-      setPlan('trial');
-    }
-  }, []);
+    applyUser(data.user ?? null);
+  }, [applyUser]);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
-    setPlan('trial');
+    setPlanState('trial');
+  }, []);
+
+  const setPlan = useCallback((nextPlan: Plan) => {
+    setPlanState(nextPlan);
+    setUser((prev) => (prev ? { ...prev, plan: nextPlan } : prev));
   }, []);
 
   // Auto refresh simplistic timer (every 2.5h) if token exists
@@ -73,9 +86,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearInterval(interval);
   }, [token, logout]);
 
+  const subscriptionStatus = user?.subscriptionStatus ?? null;
+  const trialEndsAt = user?.trialEndsAt ?? null;
+  const currentPeriodEnd = user?.currentPeriodEnd ?? null;
+
   const value = useMemo(
-    () => ({ user, token, plan, setPlan, login, register, logout }),
-    [user, token, plan, login, register, logout]
+    () => ({ user, token, plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, setPlan, login, register, logout }),
+    [user, token, plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, login, register, logout, setPlan]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

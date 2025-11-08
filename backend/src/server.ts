@@ -5,6 +5,8 @@ import modelsRouter from './routes/models';
 import authRouter from './routes/auth';
 import apiKeysRouter from './routes/apiKeys';
 import conversationsRouter from './routes/conversations';
+import billingRouter from './routes/billing';
+import { stripeWebhookHandler } from './routes/stripeWebhook';
 import { openaiChat } from './providers/openaiClient';
 import { geminiChat } from './providers/geminiClient';
 import { claudeChat } from './providers/claudeClient';
@@ -19,11 +21,15 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors());
+
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
+
 app.use(express.json());
 app.use('/api/models', modelsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/user/keys', apiKeysRouter);
 app.use('/api/conversations', conversationsRouter);
+app.use('/api/billing', billingRouter);
 
 app.post('/api/chat', requireAuth, async (req: Request, res: Response) => {
   try {
