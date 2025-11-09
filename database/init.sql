@@ -5,12 +5,18 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   name TEXT,
+<<<<<<< Current (Your changes)
   plan TEXT NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','pro')),
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   subscription_status TEXT,
   trial_ends_at TIMESTAMPTZ,
   current_period_end TIMESTAMPTZ,
+=======
+  email_verified BOOLEAN NOT NULL DEFAULT false,
+  verification_token TEXT,
+  verification_token_expires TIMESTAMPTZ,
+>>>>>>> Incoming (Background Agent changes)
   reset_token TEXT,
   reset_token_expires TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),

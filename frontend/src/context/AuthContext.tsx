@@ -22,7 +22,7 @@ type AuthContextType = {
   currentPeriodEnd: string | null;
   setPlan: (plan: Plan) => void;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<string>;
   logout: () => void;
 };
 
@@ -60,8 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = useCallback(async (name: string, email: string, password: string) => {
     const { data } = await api.post('/auth/register', { name, email, password });
-    setToken(data.token);
-    applyUser(data.user ?? null);
+    if (data?.token) {
+      setToken(data.token);
+      applyUser(data.user ?? null);
+    }
+    return data?.message || 'Verification email sent. Please confirm to activate your account.';
   }, [applyUser]);
 
   const logout = useCallback(() => {

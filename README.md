@@ -55,7 +55,9 @@ docker run -d -p 5432:5432 chatbot-postgres
 
 ### Autenticação
 - **Registo de utilizadores**: Criar conta com email e password
+- **Verificação de email**: Contas novas permanecem inativas até confirmação via link enviado
 - **Login**: Autenticação com JWT (sessão de 3 horas)
+- **Política de password**: Mínimo 10 caracteres, incluindo maiúsculas, minúsculas, números e símbolos
 - **Recuperação de password**: Sistema de reset por email
 - **Refresh automático**: Token renovado automaticamente quando o utilizador está ativo
 
@@ -96,6 +98,15 @@ docker run -d -p 5432:5432 chatbot-postgres
 5. Comece a conversar - as mensagens serão guardadas automaticamente
 6. Use a sidebar para navegar entre conversas anteriores
 
+### Fluxo de Verificação de Email
+
+1. Submeta o formulário de registo; receberá uma mensagem a confirmar o envio do email de verificação.
+2. Abra o email enviado (mockado no backend via `console.info`) e siga o link `verify-email` fornecido.
+3. O frontend executa a chamada `POST /auth/verify-email` com o token. Em alternativa, faça a chamada manualmente via `curl` ou cliente HTTP.
+4. Após verificação com sucesso, inicie sessão normalmente.
+
+> Dica: defina `APP_BASE_URL` no backend para que o link gerado aponte para o domínio correto do frontend.
+
 ## Estrutura do Projeto
 
 ```
@@ -120,6 +131,7 @@ docker run -d -p 5432:5432 chatbot-postgres
 │   │   │   ├── billing.ts
 │   │   │   └── stripeWebhook.ts
 │   │   ├── services/
+│   │   │   ├── emailService.ts
 │   │   │   └── encryptionService.ts
 │   │   └── server.ts
 │   ├── package.json
@@ -164,12 +176,17 @@ Crie um ficheiro `.env` na raiz para produção:
 ```
 JWT_SECRET=seu-jwt-secret-seguro
 ENCRYPTION_KEY=sua-chave-de-32-bytes-para-encriptacao
+<<<<<<< Current (Your changes)
 STRIPE_SECRET_KEY=sua-chave-secreta-stripe
 STRIPE_PRICE_ID=price_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 STRIPE_SUCCESS_URL=http://localhost:3000/billing-success
 STRIPE_CANCEL_URL=http://localhost:3000/billing-cancel
 STRIPE_PORTAL_RETURN_URL=http://localhost:3000/settings
+=======
+APP_BASE_URL=http://localhost:3000
+ACCESS_SIGNATURE=sig_f5e1d2c4a7b94f6e8c3d1a2b709c4e6
+>>>>>>> Incoming (Background Agent changes)
 ```
 
 Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-compose.yml`).
@@ -202,4 +219,14 @@ Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-
 - JWT tokens expiram após 3 horas
 - Middleware de autenticação protege todas as rotas sensíveis
 - Refresh tokens automáticos mantêm sessões ativas
+- Políticas de password e verificação de email evitam criação de contas fracas ou não confirmadas
+- Access tokens incluem uma assinatura secreta (`sig`) validada em todas as rotas protegidas
+
+## Testes Manuais Recomendados
+
+1. **Registo**: Introduza dados válidos e confirme que recebe a mensagem para verificar o email.
+2. **Login bloqueado**: Tente iniciar sessão antes de verificar o email e confirme a resposta `403`.
+3. **Verificação**: Execute `POST /auth/verify-email` com o token e verifique a resposta com JWT.
+4. **Password fraca**: Teste passwords que falham cada regra e confirme o erro apresentado no frontend e backend.
+5. **Reset de password**: Solicite `recover`, obtenha o token e confirme que o endpoint `/auth/reset` rejeita passwords fracas e aceita uma forte.
 

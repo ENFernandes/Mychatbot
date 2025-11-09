@@ -38,7 +38,7 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onSwitch
           </svg>
         </button>
         <div className="modal-content">
-          <Register onSwitch={onSwitch} />
+          <Register onSwitch={onSwitch} onSuccess={onClose} />
         </div>
       </div>
     </div>
