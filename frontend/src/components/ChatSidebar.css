@@ -304,6 +304,14 @@
   width: fit-content;
 }
 
+.settings-menu-plan-status {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: inherit;
+  opacity: 0.75;
+}
+
 [data-theme="dark"] .settings-menu-plan {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.08);

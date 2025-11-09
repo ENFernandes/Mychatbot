@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import './Settings.css';
 
 interface ApiKey {
@@ -12,11 +13,13 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
+  const { plan, subscriptionStatus, trialEndsAt, currentPeriodEnd } = useAuth();
   const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude'>('openai');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeKeys, setActiveKeys] = useState<ApiKey[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   useEffect(() => {
     loadActiveKeys();
@@ -80,6 +83,34 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     }
   };
 
+  const startCheckout = async () => {
+    try {
+      setBillingLoading(true);
+      const { data } = await api.post('/billing/checkout');
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      alert('Unable to start subscription checkout. Please try again later.');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const openPortal = async () => {
+    try {
+      setBillingLoading(true);
+      const { data } = await api.post('/billing/portal');
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      alert('Unable to open billing portal. Please try again later.');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
   return (
     <div className="settings-container">
       <div className="settings-header">
@@ -99,6 +130,52 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
       </div>
 
       <div className="settings-content">
+        <div className="settings-card subscription-card">
+          <div className="card-header">
+            <h2 className="card-title">Subscription</h2>
+            <p className="card-description">
+              {plan === 'pro' ? 'You have access to all pro features.' : 'You are currently on the trial plan.'}
+            </p>
+          </div>
+
+          <div className="subscription-details">
+            <div className="subscription-row">
+              <span className="subscription-label">Plan</span>
+              <span className={`subscription-value ${plan === 'pro' ? 'is-pro' : ''}`}>{plan === 'pro' ? 'Pro' : 'Trial'}</span>
+            </div>
+            {subscriptionStatus && (
+              <div className="subscription-row">
+                <span className="subscription-label">Status</span>
+                <span className="subscription-value">{subscriptionStatus.replace(/_/g, ' ')}</span>
+              </div>
+            )}
+            {trialEndsAt && (
+              <div className="subscription-row">
+                <span className="subscription-label">Trial Ends</span>
+                <span className="subscription-value">{new Date(trialEndsAt).toLocaleString()}</span>
+              </div>
+            )}
+            {currentPeriodEnd && (
+              <div className="subscription-row">
+                <span className="subscription-label">Current Period</span>
+                <span className="subscription-value">{new Date(currentPeriodEnd).toLocaleString()}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="subscription-actions">
+            {plan === 'pro' ? (
+              <button className="btn btn-secondary" onClick={openPortal} disabled={billingLoading}>
+                Manage subscription
+              </button>
+            ) : (
+              <button className="btn btn-primary" onClick={startCheckout} disabled={billingLoading}>
+                Upgrade to Pro
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Add Client Card */}
         <div className="settings-card add-client-card">
           <div className="card-header">

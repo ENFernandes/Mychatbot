@@ -28,7 +28,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   hasConfiguredClient
 }) => {
   const { theme, toggleTheme } = useTheme();
-  const { token, user, logout, plan } = useAuth();
+  const { user, logout, plan, subscriptionStatus } = useAuth();
   const [items, setItems] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -39,6 +39,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     recent: false,
   });
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
+  const [billingLoading, setBillingLoading] = useState(false);
   const settingsWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -148,6 +149,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const pinnedConversations = items.filter(item => pinnedItems.includes(item.id));
   const userInitial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
   const planLabel = plan === 'pro' ? 'Pro plan' : 'Trial plan';
+  const subscriptionLabel = subscriptionStatus ? subscriptionStatus.replace(/_/g, ' ') : null;
 
   const handleClientPage = () => {
     setIsSettingsMenuOpen(false);
@@ -159,9 +161,36 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     window.open('mailto:support@mychatbots.com', '_blank');
   };
 
-  const handleUpgrade = () => {
+  const handleUpgrade = async () => {
     setIsSettingsMenuOpen(false);
-    window.open('https://mychatbots.com/pricing', '_blank');
+    try {
+      setBillingLoading(true);
+      const { data } = await api.post('/billing/checkout');
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert('Unable to start subscription checkout. Please try again later.');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const handleManage = async () => {
+    setIsSettingsMenuOpen(false);
+    try {
+      setBillingLoading(true);
+      const { data } = await api.post('/billing/portal');
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-alert
+      alert('Unable to open billing portal. Please try again later.');
+    } finally {
+      setBillingLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -301,6 +330,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <div className="settings-menu-email">{user?.email || 'Anonymous user'}</div>
                   <div className={`settings-menu-plan ${plan === 'pro' ? 'is-pro' : ''}`}>
                     {planLabel}
+                    {subscriptionLabel ? <span className="settings-menu-plan-status">{subscriptionLabel}</span> : null}
                   </div>
                 </div>
                 <div className="settings-menu-section">
@@ -325,13 +355,24 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     </div>
                     <span className="item-arrow">↗</span>
                   </button>
-                  {isTrialPlan && (
-                    <button className="settings-menu-item" onClick={handleUpgrade}>
+                  {isTrialPlan ? (
+                    <button className="settings-menu-item" onClick={handleUpgrade} disabled={billingLoading}>
                       <div className="item-leading">
                         <span className="item-icon">🚀</span>
                         <div className="item-text">
                           <span className="item-title">Upgrade plan</span>
                           <span className="item-subtitle">Unlock all pro features</span>
+                        </div>
+                      </div>
+                      <span className="item-arrow">↗</span>
+                    </button>
+                  ) : (
+                    <button className="settings-menu-item" onClick={handleManage} disabled={billingLoading}>
+                      <div className="item-leading">
+                        <span className="item-icon">🧾</span>
+                        <div className="item-text">
+                          <span className="item-title">Manage plan</span>
+                          <span className="item-subtitle">Update subscription or billing</span>
                         </div>
                       </div>
                       <span className="item-arrow">↗</span>

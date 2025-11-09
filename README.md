@@ -85,6 +85,7 @@ docker run -d -p 5432:5432 chatbot-postgres
   - Texto em negrito e sublinhado
   - Links clicáveis com nome do domínio
 - **Auto-scroll**: Scroll automático para novas mensagens
+- **Billing Stripe**: Subscrição Pro com trial de 2 dias gerida via Stripe Checkout
 
 ## Uso
 
@@ -115,7 +116,9 @@ docker run -d -p 5432:5432 chatbot-postgres
 │   │   │   ├── auth.ts
 │   │   │   ├── apiKeys.ts
 │   │   │   ├── conversations.ts
-│   │   │   └── models.ts
+│   │   │   ├── models.ts
+│   │   │   ├── billing.ts
+│   │   │   └── stripeWebhook.ts
 │   │   ├── services/
 │   │   │   └── encryptionService.ts
 │   │   └── server.ts
@@ -161,7 +164,36 @@ Crie um ficheiro `.env` na raiz para produção:
 ```
 JWT_SECRET=seu-jwt-secret-seguro
 ENCRYPTION_KEY=sua-chave-de-32-bytes-para-encriptacao
+STRIPE_SECRET_KEY=sua-chave-secreta-stripe
+STRIPE_PRICE_ID=price_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_SUCCESS_URL=http://localhost:3000/billing-success
+STRIPE_CANCEL_URL=http://localhost:3000/billing-cancel
+STRIPE_PORTAL_RETURN_URL=http://localhost:3000/settings
 ```
+
+Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-compose.yml`).
+
+## Stripe Billing
+
+- Crie no Stripe um produto "MyChatbot Pro" com preço recorrente mensal de 5 €.
+- Ative o período experimental (trial) de 2 dias no preço ou configure manualmente ao criar a subscrição (já aplicado no backend).
+- Ajuste `STRIPE_PRICE_ID` com o ID do preço criado.
+- Defina URLs de sucesso/cancelamento para corresponder ao frontend (por padrão `http://localhost:3000/...`).
+- Para receber webhooks em desenvolvimento, utilize o Stripe CLI:
+
+  ```bash
+  stripe listen --forward-to localhost:3001/api/stripe/webhook
+  ```
+
+- Garanta que o valor exibido (`STRIPE_WEBHOOK_SECRET`) corresponde ao segredo gerado pelo comando anterior.
+
+### Fluxo de Subscrição
+
+1. Utilizador em trial seleciona **Upgrade** (sidebar ou página de Settings) → backend cria sessão de Checkout com trial de 2 dias.
+2. Após pagamento, o webhook `checkout.session.completed` guarda o `subscription_id` e associa o cliente Stripe.
+3. Eventos `customer.subscription.*` atualizam automaticamente o plano, status e datas do período atual.
+4. Utilizadores Pro podem abrir o **Portal de Billing** para gerir/cancelar a subscrição.
 
 ## Segurança
 

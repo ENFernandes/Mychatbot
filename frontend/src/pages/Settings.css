@@ -72,6 +72,50 @@
   transform: translateY(-2px);
 }
 
+.subscription-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.subscription-details {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: rgba(155, 153, 254, 0.08);
+}
+
+.subscription-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.subscription-label {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-size: 12px;
+}
+
+.subscription-value {
+  font-weight: 600;
+}
+
+.subscription-value.is-pro {
+  color: #667eea;
+}
+
+.subscription-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .card-header {
   margin-bottom: var(--spacing-xl);
 }
