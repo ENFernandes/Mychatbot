@@ -66,22 +66,40 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       return;
     }
 
+    const previousMessages = messages;
+    const trimmedInput = inputMessage.trim();
     const userMessage: Message = {
       role: 'user',
-      content: inputMessage.trim(),
+      content: trimmedInput,
     };
 
-    const newMessages = [...messages, userMessage];
-    setMessages(newMessages);
+    const optimisticMessages = [...previousMessages, userMessage];
+    setMessages(optimisticMessages);
     setInputMessage('');
     setError(null);
     setIsLoading(true);
 
+    let convId = conversationId;
+    let createdConversationId: string | null = null;
+
     try {
+      if (!convId) {
+        const { data } = await api.post('/conversations', {});
+        convId = data.id;
+        createdConversationId = convId;
+        onConversationChange(convId);
+        window.dispatchEvent(new CustomEvent('conversation-created'));
+      }
+
+      await api.post(`/conversations/${convId}/messages`, {
+        role: 'user',
+        content: userMessage.content,
+      });
+
       const response = await api.post('/chat', {
         provider,
         model,
-        messages: newMessages.map((msg) => ({
+        messages: optimisticMessages.map((msg) => ({
           role: msg.role,
           content: msg.content,
         })),
@@ -93,28 +111,35 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         provider: provider,
       };
 
-      setMessages([...newMessages, assistantMessage]);
+      const fullConversation = [...optimisticMessages, assistantMessage];
+      setMessages(fullConversation);
 
-      // Persistence
       try {
-        let convId = conversationId;
-        if (!convId) {
-          const { data } = await api.post('/conversations', {});
-          convId = data.id;
-          onConversationChange(convId);
-          window.dispatchEvent(new CustomEvent('conversation-created'));
-        }
-        await api.post(`/conversations/${convId}/messages`, { role: 'user', content: userMessage.content });
-        await api.post(`/conversations/${convId}/messages`, { role: 'assistant', content: assistantMessage.content, provider: provider });
-      } catch (_) {
-        // Ignore persistence failures
+        await api.post(`/conversations/${convId}/messages`, {
+          role: 'assistant',
+          content: assistantMessage.content,
+          provider: provider,
+        });
+      } catch (persistError) {
+        console.error('Error saving assistant message:', persistError);
       }
     } catch (err: any) {
       console.error('Error sending message:', err);
+
+      if (createdConversationId) {
+        try {
+          await api.delete(`/conversations/${createdConversationId}`);
+          window.dispatchEvent(new CustomEvent('conversation-created'));
+        } catch (cleanupError) {
+          console.error('Error deleting conversation after failure:', cleanupError);
+        }
+        onConversationChange(null);
+      }
+
+      setMessages(previousMessages);
       setError(
         err.response?.data?.error || 'Error communicating with the API. Please check your API keys.'
       );
-      setMessages(newMessages.slice(0, -1));
     } finally {
       setIsLoading(false);
     }
