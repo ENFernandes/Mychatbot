@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../services/api';
-import { useTheme } from '../context/ThemeContext';
 import './Chat.css';
 
 interface Message {
@@ -17,12 +16,10 @@ interface ChatProps {
 }
 
 const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange }) => {
-  const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -79,7 +76,6 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     setInputMessage('');
     setError(null);
     setIsLoading(true);
-    setIsTyping(true);
 
     try {
       const response = await api.post('/chat', {
@@ -121,7 +117,6 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       setMessages(newMessages.slice(0, -1));
     } finally {
       setIsLoading(false);
-      setIsTyping(false);
     }
   };
 

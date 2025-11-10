@@ -9,7 +9,6 @@ type Conversation = { id: string; title: string; created_at: string; updated_at:
 interface ChatSidebarProps {
   activeId: string | null;
   onSelect: (id: string) => void;
-  provider: 'openai' | 'gemini' | 'claude';
   model: string;
   onModelChange: (model: string) => void;
   models: string[];
@@ -17,10 +16,9 @@ interface ChatSidebarProps {
   hasConfiguredClient: boolean;
 }
 
-const ChatSidebar: React.FC<ChatSidebarProps> = ({ 
-  activeId, 
-  onSelect, 
-  provider,
+const ChatSidebar: React.FC<ChatSidebarProps> = ({
+  activeId,
+  onSelect,
   model,
   onModelChange,
   models,

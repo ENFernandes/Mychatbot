@@ -210,7 +210,6 @@ const AppShell: React.FC = () => {
             <ChatSidebar 
               activeId={activeConversationId} 
               onSelect={setActiveConversationId}
-              provider={provider}
               model={model}
               onModelChange={setModel}
               models={models}

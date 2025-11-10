@@ -46,3 +46,6 @@ const RegisterModal: React.FC<RegisterModalProps> = ({ isOpen, onClose, onSwitch
 };
 
 export default RegisterModal;
+
+
+

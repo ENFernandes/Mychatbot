@@ -26,11 +26,42 @@ type AuthContextType = {
   logout: () => void;
 };
 
+type JwtPayload = {
+  exp?: number;
+  [key: string]: unknown;
+};
+
+function decodeJwt(token: string): JwtPayload | null {
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.length % 4 === 0 ? base64 : base64 + '='.repeat(4 - (base64.length % 4));
+    const decoded = atob(padded);
+    return JSON.parse(decoded) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function isTokenExpired(token: string, bufferMs = 0): boolean {
+  const payload = decodeJwt(token);
+  if (!payload?.exp) return false;
+  return payload.exp * 1000 <= Date.now() + bufferMs;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('access_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    const stored = localStorage.getItem('access_token');
+    if (stored && isTokenExpired(stored)) {
+      localStorage.removeItem('access_token');
+      return null;
+    }
+    return stored;
+  });
   const [plan, setPlanState] = useState<Plan>(() => {
     const stored = localStorage.getItem('user_plan');
     return stored === 'pro' ? 'pro' : 'trial';
@@ -42,11 +73,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setPlanState(effectivePlan);
   }, []);
 
+  const logout = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setPlanState('trial');
+  }, []);
+
   useEffect(() => {
+    if (!token) {
+      setAccessToken(null);
+      localStorage.removeItem('access_token');
+      return;
+    }
+    if (isTokenExpired(token)) {
+      setAccessToken(null);
+      localStorage.removeItem('access_token');
+      logout();
+      return;
+    }
     setAccessToken(token);
-    if (token) localStorage.setItem('access_token', token);
-    else localStorage.removeItem('access_token');
-  }, [token]);
+    localStorage.setItem('access_token', token);
+  }, [token, logout]);
 
   useEffect(() => {
     localStorage.setItem('user_plan', plan);
@@ -67,26 +114,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return data?.message || 'Verification email sent. Please confirm to activate your account.';
   }, [applyUser]);
 
-  const logout = useCallback(() => {
-    setToken(null);
-    setUser(null);
-    setPlanState('trial');
-  }, []);
-
   const setPlan = useCallback((nextPlan: Plan) => {
     setPlanState(nextPlan);
     setUser((prev) => (prev ? { ...prev, plan: nextPlan } : prev));
   }, []);
 
-  // Auto refresh simplistic timer (every 2.5h) if token exists
   useEffect(() => {
     if (!token) return;
-    const interval = setInterval(async () => {
-      const newToken = await refreshToken(token);
-      if (newToken) setToken(newToken);
-      else logout();
-    }, 2.5 * 60 * 60 * 1000);
-    return () => clearInterval(interval);
+    const payload = decodeJwt(token);
+    const exp = payload?.exp ? payload.exp * 1000 : null;
+    if (exp && exp <= Date.now()) {
+      logout();
+      return;
+    }
+    const refreshDelay = exp
+      ? Math.max(exp - Date.now() - 60 * 1000, 60 * 1000)
+      : 2.5 * 60 * 60 * 1000;
+
+    const timeout = setTimeout(async () => {
+      try {
+        const newToken = await refreshToken(token);
+        if (newToken && !isTokenExpired(newToken, 5 * 1000)) {
+          setToken(newToken);
+        } else {
+          logout();
+        }
+      } catch {
+        logout();
+      }
+    }, refreshDelay);
+
+    return () => clearTimeout(timeout);
   }, [token, logout]);
 
   const subscriptionStatus = user?.subscriptionStatus ?? null;

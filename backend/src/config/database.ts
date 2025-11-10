@@ -14,6 +14,9 @@ export async function initializeSchema() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT,
+      email_verified BOOLEAN NOT NULL DEFAULT false,
+      verification_token TEXT,
+      verification_token_expires TIMESTAMPTZ,
       plan TEXT NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','pro')),
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
@@ -50,6 +53,27 @@ export async function initializeSchema() {
         WHERE table_name = 'users' AND column_name = 'stripe_subscription_id'
       ) THEN
         ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'email_verified'
+      ) THEN
+        ALTER TABLE users ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT false;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'verification_token'
+      ) THEN
+        ALTER TABLE users ADD COLUMN verification_token TEXT;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'users' AND column_name = 'verification_token_expires'
+      ) THEN
+        ALTER TABLE users ADD COLUMN verification_token_expires TIMESTAMPTZ;
       END IF;
 
       IF NOT EXISTS (

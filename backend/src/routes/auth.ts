@@ -95,7 +95,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', async (req: Request, res: Response) => {
   try {
     const { token } = req.body;
-    const payload: any = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true });
+    const payload: any = jwt.verify(token, JWT_SECRET);
     if (payload.sig !== ACCESS_SIGNATURE) {
       return res.status(401).json({ error: 'invalid token' });
     }
