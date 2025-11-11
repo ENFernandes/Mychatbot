@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Chat from './components/Chat';
 import ProviderSelector from './components/ProviderSelector';
 import Settings from './pages/Settings';
@@ -9,11 +9,13 @@ import Landing from './pages/Landing';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
 import { api } from './services/api';
+import TrialCountdown from './components/TrialCountdown';
+import UpdatePlan from './pages/UpdatePlan';
 import './App.css';
 
 const AppShell: React.FC = () => {
-  const { token } = useAuth();
-  const [view, setView] = useState<'chat' | 'settings'>('chat');
+  const { token, plan, trialEndsAt, isBillingLocked, logout } = useAuth();
+  const [view, setView] = useState<'chat' | 'settings' | 'update-plan'>('chat');
   const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude'>('openai');
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string>('');
@@ -22,14 +24,36 @@ const AppShell: React.FC = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const handleOpenUpdatePlan = useCallback(() => setView('update-plan'), []);
+
+  const handleCheckout = useCallback(async () => {
+    try {
+      const { data } = await api.post('/billing/checkout');
+      if (data?.url) {
+        window.location.assign(data.url);
+        return;
+      }
+      throw new Error('Não conseguimos iniciar o checkout.');
+    } catch (error: any) {
+      const message = error?.response?.data?.error || error?.message || 'Não conseguimos iniciar o checkout.';
+      throw new Error(message);
+    }
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 768);
     };
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (isBillingLocked) {
+      setView('update-plan');
+    }
+  }, [isBillingLocked]);
 
   // Close modals when user successfully authenticates
   useEffect(() => {
@@ -173,6 +197,12 @@ const AppShell: React.FC = () => {
     </>
   );
 
+  const showTrialCountdown =
+    plan === 'trial' &&
+    !!trialEndsAt &&
+    !isBillingLocked &&
+    new Date(trialEndsAt).getTime() > Date.now();
+
   if (!token) {
     return (
       <>
@@ -189,12 +219,33 @@ const AppShell: React.FC = () => {
     );
   }
 
+  if (isBillingLocked || view === 'update-plan') {
+    return (
+      <>
+        <UpdatePlan
+          trialEndsAt={trialEndsAt}
+          isLocked={isBillingLocked}
+          onUpgrade={handleCheckout}
+          onBack={isBillingLocked ? undefined : () => setView('chat')}
+          onGoHome={() => {
+            setView('chat');
+            logout();
+          }}
+        />
+        {modals}
+      </>
+    );
+  }
+
   const isSettingsView = view === 'settings';
   const containerClassName = `app-container-authenticated${isSettingsView ? ' settings-view' : ''}`;
   const mainClassName = `main-authenticated${isSettingsView ? ' settings-view' : ''}`;
 
   return (
     <div className={containerClassName}>
+      {showTrialCountdown && trialEndsAt && (
+        <TrialCountdown trialEndsAt={trialEndsAt} onManagePlan={handleOpenUpdatePlan} />
+      )}
       <header className="app-header">
         <nav className="header-nav">
           <div className="header-brand">

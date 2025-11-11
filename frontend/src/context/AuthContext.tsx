@@ -20,10 +20,12 @@ type AuthContextType = {
   subscriptionStatus: string | null;
   trialEndsAt: string | null;
   currentPeriodEnd: string | null;
+  isBillingLocked: boolean;
   setPlan: (plan: Plan) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<string>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 };
 
 type JwtPayload = {
@@ -66,17 +68,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const stored = localStorage.getItem('user_plan');
     return stored === 'pro' ? 'pro' : 'trial';
   });
+  const [isBillingLocked, setIsBillingLocked] = useState<boolean>(false);
+
+  const computeBillingLocked = useCallback((userData: UserDetails | null) => {
+    if (!userData) return false;
+    const effectivePlan: Plan = userData.plan === 'pro' ? 'pro' : 'trial';
+    const subscriptionStatus = userData.subscriptionStatus ?? null;
+    const trialEndsAtMs = userData.trialEndsAt ? new Date(userData.trialEndsAt).getTime() : null;
+    const now = Date.now();
+
+    if (effectivePlan === 'trial') {
+      if (!trialEndsAtMs) return false;
+      return trialEndsAtMs <= now;
+    }
+
+    if (!subscriptionStatus) return true;
+
+    const allowedStatuses = new Set(['active', 'trialing']);
+    if (allowedStatuses.has(subscriptionStatus)) {
+      return false;
+    }
+
+    const blockedStatuses = new Set(['past_due', 'incomplete', 'incomplete_expired', 'canceled', 'unpaid']);
+    if (blockedStatuses.has(subscriptionStatus)) {
+      return true;
+    }
+
+    return true;
+  }, []);
 
   const applyUser = useCallback((userData: UserDetails | null) => {
     setUser(userData);
     const effectivePlan = userData?.plan === 'pro' ? 'pro' : 'trial';
     setPlanState(effectivePlan);
-  }, []);
+    setIsBillingLocked(computeBillingLocked(userData));
+  }, [computeBillingLocked]);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     setPlanState('trial');
+    setIsBillingLocked(false);
   }, []);
 
   useEffect(() => {
@@ -119,8 +151,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser((prev) => (prev ? { ...prev, plan: nextPlan } : prev));
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    if (!token) return;
+    try {
+      const { data } = await api.get('/auth/me');
+      applyUser(data.user ?? null);
+    } catch (error) {
+      console.error('Error refreshing user', error);
+    }
+  }, [token, applyUser]);
+
   useEffect(() => {
     if (!token) return;
+    refreshUser();
     const payload = decodeJwt(token);
     const exp = payload?.exp ? payload.exp * 1000 : null;
     if (exp && exp <= Date.now()) {
@@ -145,15 +188,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, refreshDelay);
 
     return () => clearTimeout(timeout);
-  }, [token, logout]);
+  }, [token, logout, refreshUser]);
+
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      setIsBillingLocked((prev) => {
+        const next = computeBillingLocked(user);
+        return prev === next ? prev : next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [user, computeBillingLocked]);
 
   const subscriptionStatus = user?.subscriptionStatus ?? null;
   const trialEndsAt = user?.trialEndsAt ?? null;
   const currentPeriodEnd = user?.currentPeriodEnd ?? null;
 
   const value = useMemo(
-    () => ({ user, token, plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, setPlan, login, register, logout }),
-    [user, token, plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, login, register, logout, setPlan]
+    () => ({
+      user,
+      token,
+      plan,
+      subscriptionStatus,
+      trialEndsAt,
+      currentPeriodEnd,
+      isBillingLocked,
+      setPlan,
+      login,
+      register,
+      logout,
+      refreshUser,
+    }),
+    [
+      user,
+      token,
+      plan,
+      subscriptionStatus,
+      trialEndsAt,
+      currentPeriodEnd,
+      isBillingLocked,
+      login,
+      register,
+      logout,
+      setPlan,
+      refreshUser,
+    ]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

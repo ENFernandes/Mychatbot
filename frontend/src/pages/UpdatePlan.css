@@ -1,0 +1,214 @@
+.update-plan-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, rgba(92, 108, 250, 0.12), rgba(118, 75, 162, 0.18));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary, #667eea) 14%, var(--color-bg, #ffffff)),
+    color-mix(in srgb, var(--color-secondary, #764ba2) 12%, var(--color-bg-light, #f8f9fa))
+  );
+  padding: 32px 16px;
+}
+
+[data-theme='dark'] .update-plan-wrapper {
+  background: linear-gradient(135deg, rgba(92, 108, 250, 0.18), rgba(30, 30, 62, 0.85));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary, #667eea) 26%, transparent),
+    color-mix(in srgb, var(--color-bg-dark, #0a0a0a) 95%, transparent)
+  );
+}
+
+.update-plan-card {
+  max-width: 540px;
+  width: 100%;
+  background: var(--color-surface-elevated, #ffffff);
+  color: var(--color-text, #1a1a1a);
+  border-radius: 24px;
+  padding: 36px;
+  box-shadow: var(--shadow-xl, 0 25px 70px rgba(0, 0, 0, 0.35));
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.update-plan-header h1 {
+  font-size: 28px;
+  margin: 12px 0 8px;
+  color: inherit;
+}
+
+.update-plan-header p {
+  margin: 0;
+  color: var(--color-text-muted, rgba(0, 0, 0, 0.65));
+  line-height: 1.6;
+}
+
+.update-plan-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.update-plan-status.locked {
+  background: rgba(255, 86, 114, 0.16);
+  color: #ff5672;
+  background: color-mix(in srgb, var(--color-error, #b00020) 18%, transparent);
+  color: var(--color-error, #b00020);
+}
+
+.update-plan-status.active {
+  background: rgba(92, 108, 250, 0.16);
+  color: #5c6cfa;
+  background: color-mix(in srgb, var(--color-primary, #667eea) 18%, transparent);
+  color: var(--color-primary, #667eea);
+}
+
+.update-plan-benefits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--color-text-muted, rgba(0, 0, 0, 0.65));
+}
+
+.update-plan-benefits li::before {
+  content: '✓';
+  margin-right: 10px;
+  color: #5c6cfa;
+  font-weight: 700;
+  color: var(--color-primary, #667eea);
+}
+
+.update-plan-timeline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--color-text, #1a1a1a) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border, #e0e0e0) 70%, transparent);
+}
+
+.timeline-label {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+}
+
+.timeline-value {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.update-plan-error {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 86, 114, 0.16);
+  color: #ff9ba7;
+  font-size: 14px;
+  background: color-mix(in srgb, var(--color-error, #b00020) 20%, transparent);
+  color: color-mix(in srgb, var(--color-error, #b00020) 70%, #ffffff);
+}
+
+.update-plan-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.upgrade-button {
+  flex: 1;
+  min-width: 200px;
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  background: linear-gradient(135deg, #5c6cfa, #7b5cfa);
+  background: linear-gradient(
+    135deg,
+    var(--color-primary, #667eea),
+    color-mix(in srgb, var(--color-secondary, #764ba2) 80%, var(--color-primary, #667eea))
+  );
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.upgrade-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px rgba(92, 108, 250, 0.35);
+}
+
+.upgrade-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.secondary-button {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid color-mix(in srgb, var(--color-border, #e0e0e0) 65%, transparent);
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.secondary-button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--color-text, #1a1a1a) 10%, transparent);
+}
+
+.ghost-button {
+  padding: 14px 20px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted, rgba(0, 0, 0, 0.55));
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  flex: 1 1 180px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.ghost-button:hover {
+  color: var(--color-text, #1a1a1a);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 600px) {
+  .update-plan-card {
+    padding: 28px 22px;
+  }
+
+  .update-plan-actions {
+    flex-direction: column;
+  }
+
+  .upgrade-button,
+  .secondary-button,
+  .ghost-button {
+    width: 100%;
+  }
+}
+

@@ -1,0 +1,74 @@
+.trial-countdown-badge {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--color-surface-elevated, rgba(30, 30, 30, 0.9));
+  color: var(--color-text-primary, #ffffff);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  z-index: 1200;
+}
+
+.trial-countdown-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.trial-countdown-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.trial-countdown-timer {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.trial-countdown-button {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--color-accent, #5c6cfa);
+  color: #fff;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.trial-countdown-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(92, 108, 250, 0.3);
+}
+
+.trial-countdown-button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+@media (max-width: 768px) {
+  .trial-countdown-badge {
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: 16px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .trial-countdown-button {
+    width: 100%;
+  }
+}
+

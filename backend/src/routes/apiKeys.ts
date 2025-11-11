@@ -2,10 +2,12 @@ import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
 import { encrypt, decrypt } from '../services/encryptionService';
 import { requireAuth } from '../middleware/auth';
+import { enforceActiveSubscription } from '../middleware/subscription';
 
 const router = Router();
 
 router.use(requireAuth);
+router.use(enforceActiveSubscription);
 
 router.get('/', async (req: Request, res: Response) => {
   try {

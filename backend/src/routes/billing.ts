@@ -57,6 +57,8 @@ router.post('/checkout', async (req, res) => {
 
     const metadata = { userId };
 
+    const trialEndTimestamp = Math.floor((Date.now() + 4 * 60 * 60 * 1000) / 1000);
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -71,7 +73,7 @@ router.post('/checkout', async (req, res) => {
       cancel_url: STRIPE_CANCEL_URL,
       metadata,
       subscription_data: {
-        trial_period_days: 2,
+        trial_end: trialEndTimestamp,
         metadata,
       },
     });

@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendVerificationEmail } from '../services/emailService';
 import { JWT_SECRET, ACCESS_EXPIRES, ACCESS_SIGNATURE } from '../config/authConfig';
+import { requireAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -55,9 +56,17 @@ router.post('/register', async (req: Request, res: Response) => {
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     await pool.query(
-      `INSERT INTO users(email, password_hash, name, email_verified, verification_token, verification_token_expires)
-       VALUES($1,$2,$3,false,$4,$5)`
-        + ' ON CONFLICT (email) DO NOTHING',
+      `INSERT INTO users(
+         email,
+         password_hash,
+         name,
+         email_verified,
+         verification_token,
+         verification_token_expires,
+         trial_ends_at
+       )
+       VALUES($1,$2,$3,false,$4,$5, now() + INTERVAL '4 hours')
+       ON CONFLICT (email) DO NOTHING`,
       [normalizedEmail, hash, trimmedName, verificationToken, verificationExpires]
     );
 
@@ -79,14 +88,30 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = email?.trim().toLowerCase();
-    const result = await pool.query('SELECT id, email, password_hash, name, email_verified FROM users WHERE email=$1', [normalizedEmail]);
+    const result = await pool.query(
+      `SELECT id, email, password_hash, name, email_verified,
+              plan, subscription_status, trial_ends_at, current_period_end
+       FROM users WHERE email=$1`,
+      [normalizedEmail]
+    );
     const user = result.rows[0];
     if (!user) return res.status(401).json({ error: 'invalid credentials' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
     if (!user.email_verified) return res.status(403).json({ error: 'email not verified' });
     const token = signAccess(user);
-    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        plan: user.plan,
+        subscriptionStatus: user.subscription_status,
+        trialEndsAt: user.trial_ends_at ? new Date(user.trial_ends_at).toISOString() : null,
+        currentPeriodEnd: user.current_period_end ? new Date(user.current_period_end).toISOString() : null,
+      },
+    });
   } catch (e) {
     res.status(500).json({ error: 'authentication error' });
   }
@@ -174,18 +199,60 @@ router.post('/verify-email', async (req: Request, res: Response) => {
        SET email_verified=true,
            verification_token=NULL,
            verification_token_expires=NULL,
+           trial_ends_at=COALESCE(trial_ends_at, now() + INTERVAL '4 hours'),
            updated_at=now()
        WHERE id=$1
-       RETURNING id, email, name`,
+       RETURNING id, email, name, plan, subscription_status, trial_ends_at, current_period_end`,
       [user.id]
     );
 
     const verifiedUser = updated.rows[0];
     const accessToken = signAccess(verifiedUser);
 
-    res.json({ token: accessToken, user: verifiedUser });
+    res.json({
+      token: accessToken,
+      user: {
+        id: verifiedUser.id,
+        email: verifiedUser.email,
+        name: verifiedUser.name,
+        plan: verifiedUser.plan,
+        subscriptionStatus: verifiedUser.subscription_status,
+        trialEndsAt: verifiedUser.trial_ends_at ? new Date(verifiedUser.trial_ends_at).toISOString() : null,
+        currentPeriodEnd: verifiedUser.current_period_end ? new Date(verifiedUser.current_period_end).toISOString() : null,
+      },
+    });
   } catch (e) {
     res.status(500).json({ error: 'error verifying email' });
+  }
+});
+
+router.get('/me', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).userId as string;
+    const result = await pool.query(
+      `SELECT id, email, name, plan, subscription_status, trial_ends_at, current_period_end
+       FROM users WHERE id=$1`,
+      [userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'user not found' });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        plan: user.plan,
+        subscriptionStatus: user.subscription_status,
+        trialEndsAt: user.trial_ends_at ? new Date(user.trial_ends_at).toISOString() : null,
+        currentPeriodEnd: user.current_period_end ? new Date(user.current_period_end).toISOString() : null,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'error fetching user' });
   }
 });
 

@@ -13,6 +13,7 @@ import { claudeChat } from './providers/claudeClient';
 import { initializeSchema, pool } from './config/database';
 import { decrypt } from './services/encryptionService';
 import { requireAuth } from './middleware/auth';
+import { enforceActiveSubscription } from './middleware/subscription';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -25,13 +26,13 @@ app.use(cors());
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
 app.use(express.json());
-app.use('/api/models', modelsRouter);
+app.use('/api/models', requireAuth, enforceActiveSubscription, modelsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/user/keys', apiKeysRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/billing', billingRouter);
 
-app.post('/api/chat', requireAuth, async (req: Request, res: Response) => {
+app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
     const { message, messages, provider, model } = req.body as any;
