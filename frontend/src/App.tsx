@@ -147,20 +147,16 @@ const AppShell: React.FC = () => {
     }
     const fetchModels = async () => {
       try {
-        const keyResp = await api.get(`/user/keys/${provider}/temp`);
-        const keyData = keyResp.data;
-        const modelResp = await fetch(`/api/models?provider=${provider}&apiKey=${encodeURIComponent(keyData.apiKey)}`, {
-          headers: { 'x-api-key': keyData.apiKey },
-        });
-        const modelData = await modelResp.json();
+        const { data: modelData } = await api.get(`/models?provider=${provider}`);
         setModels(modelData.models || []);
         setModel((modelData.models || [])[0] || '');
       } catch (e) {
-        const defaults = provider === 'openai'
-          ? ['gpt-5', 'gpt-4o', 'gpt-4.1']
-          : provider === 'gemini'
-          ? ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro']
-          : ['claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-haiku-latest'];
+        const defaults =
+          provider === 'openai'
+            ? ['gpt-5', 'gpt-4o', 'gpt-4.1']
+            : provider === 'gemini'
+            ? ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro']
+            : ['claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-haiku-latest'];
         setModels(defaults);
         setModel(defaults[0]);
       }

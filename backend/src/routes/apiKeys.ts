@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../config/database';
-import { encrypt, decrypt } from '../services/encryptionService';
+import { encrypt } from '../services/encryptionService';
 import { requireAuth } from '../middleware/auth';
 import { enforceActiveSubscription } from '../middleware/subscription';
 
@@ -43,20 +43,6 @@ router.put('/', async (req: Request, res: Response) => {
     if (error.code === '23503') {
       return res.status(400).json({ error: 'user not found' });
     }
-    res.status(500).json({ error: 'internal server error' });
-  }
-});
-
-router.get('/:provider/temp', async (req: Request, res: Response) => {
-  try {
-    const userId = (req as any).userId as string;
-    const provider = req.params.provider;
-    const result = await pool.query('SELECT encrypted_key, iv FROM user_api_keys WHERE user_id=$1 AND provider=$2', [userId, provider]);
-    if (result.rowCount === 0) return res.status(404).json({ error: 'key not found' });
-    const key = decrypt(result.rows[0].encrypted_key, result.rows[0].iv);
-    res.json({ apiKey: key });
-  } catch (error: any) {
-    console.error('Error fetching temporary API key:', error);
     res.status(500).json({ error: 'internal server error' });
   }
 });

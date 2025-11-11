@@ -26,7 +26,7 @@ app.use(cors());
 app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhookHandler);
 
 app.use(express.json());
-app.use('/api/models', requireAuth, enforceActiveSubscription, modelsRouter);
+app.use('/api/models', modelsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/user/keys', apiKeysRouter);
 app.use('/api/conversations', conversationsRouter);
