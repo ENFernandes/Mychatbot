@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum BillingProvider {
+  STRIPE   @map("stripe")
+  INTERNAL @map("internal")
+}
+
+enum SubscriptionStatus {
+  TRIALING          @map("trialing")
+  ACTIVE            @map("active")
+  PAST_DUE          @map("past_due")
+  CANCELED          @map("canceled")
+  INCOMPLETE        @map("incomplete")
+  INCOMPLETE_EXPIRED @map("incomplete_expired")
+  UNPAID            @map("unpaid")
+  PAUSED            @map("paused")
+}
+
+enum PlanCode {
+  FREE        @map("free")
+  TRIAL       @map("trial")
+  PRO         @map("pro")
+  ENTERPRISE  @map("enterprise")
+}
+
+enum ApiProvider {
+  OPENAI @map("openai")
+  GEMINI @map("gemini")
+  CLAUDE @map("claude")
+}
+
+enum MessageRole {
+  USER      @map("user")
+  ASSISTANT @map("assistant")
+}
+
+model User {
+  id                       String              @id @default(uuid())
+  email                    String              @unique
+  passwordHash             String              @map("password_hash")
+  name                     String?
+  emailVerified            Boolean             @default(false) @map("email_verified")
+  verificationToken        String?             @map("verification_token")
+  verificationTokenExpires DateTime?           @map("verification_token_expires")
+  resetToken               String?             @map("reset_token")
+  resetTokenExpires        DateTime?           @map("reset_token_expires")
+  createdAt                DateTime            @default(now()) @map("created_at")
+  updatedAt                DateTime            @updatedAt @map("updated_at")
+
+  apiKeys        UserApiKey[]
+  conversations  Conversation[]
+  subscription   UserSubscription?
+  stripeCustomer StripeCustomer?
+
+  @@map("users")
+}
+
+model UserApiKey {
+  id           String      @id @default(uuid())
+  userId       String      @map("user_id")
+  provider     ApiProvider
+  encryptedKey Bytes       @map("encrypted_key")
+  iv           Bytes
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, provider])
+  @@map("user_api_keys")
+}
+
+model Conversation {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  title     String    @default("New conversation")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  conversationId String        @map("conversation_id")
+  role           MessageRole
+  content        String
+  provider       ApiProvider?
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+}
+
+model Plan {
+  code            PlanCode             @id
+  name            String
+  description     String?
+  priceCents      Int?                 @map("price_cents")
+  currency        String?              @default("usd")
+  interval        String?              @default("month")
+  trialPeriodDays Int?                 @default(0) @map("trial_period_days")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  userSubscriptions   UserSubscription[]
+  stripeSubscriptions StripeSubscription[]
+
+  @@map("plans")
+}
+
+model UserSubscription {
+  id                 String              @id @default(uuid())
+  userId             String              @unique @map("user_id")
+  planCode           PlanCode            @map("plan_code")
+  status             SubscriptionStatus  @default(TRIALING)
+  provider           BillingProvider     @default(STRIPE)
+  trialEndsAt        DateTime?           @map("trial_ends_at")
+  currentPeriodStart DateTime?           @map("current_period_start")
+  currentPeriodEnd   DateTime?           @map("current_period_end")
+  cancelAtPeriodEnd  Boolean             @default(false) @map("cancel_at_period_end")
+  canceledAt         DateTime?           @map("canceled_at")
+  metadata           Json?
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  stripeSubscription StripeSubscription?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planCode], references: [code], onDelete: Restrict)
+
+  @@map("user_subscriptions")
+}
+
+model StripeCustomer {
+  id         String    @id @default(uuid())
+  userId     String    @unique @map("user_id")
+  customerId String    @unique @map("customer_id")
+  email      String?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions StripeSubscription[]
+
+  @@map("stripe_customers")
+}
+
+model StripeSubscription {
+  id                 String             @id @default(uuid())
+  stripeCustomerId   String             @map("stripe_customer_id")
+  subscriptionId     String             @unique @map("subscription_id")
+  planCode           PlanCode?          @map("plan_code")
+  status             SubscriptionStatus
+  currentPeriodStart DateTime?          @map("current_period_start")
+  currentPeriodEnd   DateTime?          @map("current_period_end")
+  cancelAtPeriodEnd  Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt         DateTime?          @map("canceled_at")
+  rawData            Json?              @map("raw_data")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  userSubscriptionId String?            @unique @map("user_subscription_id")
+
+  stripeCustomer   StripeCustomer   @relation(fields: [stripeCustomerId], references: [id], onDelete: Cascade)
+  plan             Plan?            @relation(fields: [planCode], references: [code], onDelete: SetNull)
+  userSubscription UserSubscription? @relation(fields: [userSubscriptionId], references: [id], onDelete: SetNull)
+  events           SubscriptionEvent[]
+
+  @@index([stripeCustomerId])
+  @@map("stripe_subscriptions")
+}
+
+model SubscriptionEvent {
+  id                  String            @id @default(uuid())
+  stripeSubscriptionId String           @map("stripe_subscription_id")
+  type                String
+  payload             Json
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  stripeSubscription StripeSubscription @relation(fields: [stripeSubscriptionId], references: [id], onDelete: Cascade)
+
+  @@map("subscription_events")
+}
+

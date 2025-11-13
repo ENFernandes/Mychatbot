@@ -35,15 +35,20 @@ export async function openaiChat(params: {
 }
 
 export async function openaiListModels(apiKey: string): Promise<string[]> {
-  const client = new OpenAI({ apiKey });
-  const list = await client.models.list();
-  const ids = list.data
-    .map((m) => ({ id: (m as any).id as string, created: (m as any).created as number }))
-    .filter((m) => /gpt|o\b|o-mini|gpt-/.test(m.id))
-    .sort((a, b) => (b.created || 0) - (a.created || 0))
-    .slice(0, 3)
-    .map((m) => m.id);
-  return ids;
+  try {
+    const client = new OpenAI({ apiKey });
+    const list = await client.models.list();
+    const ids = list.data
+      .map((m) => ({ id: (m as any).id as string, created: (m as any).created as number }))
+      .filter((m) => /gpt|o\b|o-mini|gpt-/.test(m.id))
+      .sort((a, b) => (b.created || 0) - (a.created || 0))
+      .slice(0, 3)
+      .map((m) => m.id);
+    return ids;
+  } catch (error: any) {
+    // Re-throw with more context for better error handling upstream
+    throw error;
+  }
 }
 
 

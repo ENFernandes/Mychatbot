@@ -1,7 +1,14 @@
 import { Router } from 'express';
-import { pool } from '../config/database';
+import { PlanCode } from '@prisma/client';
+import { prisma } from '../config/database';
 import { requireAuth } from '../middleware/auth';
 import { getStripe } from '../providers/stripeClient';
+import {
+  ensureDefaultPlans,
+  ensureTrialSubscription,
+  getSubscriptionSummary,
+  isSubscriptionActive,
+} from '../services/subscriptionService';
 
 const router = Router();
 
@@ -21,29 +28,26 @@ router.post('/checkout', async (req, res) => {
     const userId = (req as any).userId as string;
     const stripe = getStripe();
 
-    const userResult = await pool.query(
-      `SELECT id, email, plan, stripe_customer_id, subscription_status
-       FROM users WHERE id=$1`,
-      [userId]
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        stripeCustomer: true,
+      },
+    });
 
-    if (userResult.rowCount === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const user = userResult.rows[0] as {
-      id: string;
-      email: string;
-      plan: 'trial' | 'pro';
-      stripe_customer_id: string | null;
-      subscription_status: string | null;
-    };
+    await ensureDefaultPlans();
+    await ensureTrialSubscription(userId);
+    const summary = await getSubscriptionSummary(userId);
 
-    if (user.plan === 'pro' && user.subscription_status && user.subscription_status !== 'canceled') {
+    if (summary.planCode === PlanCode.PRO && isSubscriptionActive(summary)) {
       return res.status(400).json({ error: 'User already has an active subscription' });
     }
 
-    let customerId = user.stripe_customer_id;
+    let customerId = user.stripeCustomer?.customerId;
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -52,12 +56,19 @@ router.post('/checkout', async (req, res) => {
         },
       });
       customerId = customer.id;
-      await pool.query('UPDATE users SET stripe_customer_id=$1, updated_at=now() WHERE id=$2', [customerId, userId]);
+      await prisma.stripeCustomer.create({
+        data: {
+          userId,
+          customerId,
+          email: user.email,
+        },
+      });
     }
 
     const metadata = { userId };
 
-    const trialEndTimestamp = Math.floor((Date.now() + 4 * 60 * 60 * 1000) / 1000);
+    const trialExtensionHours = 48;
+    const trialEndTimestamp = Math.floor((Date.now() + trialExtensionHours * 60 * 60 * 1000) / 1000);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -94,22 +105,21 @@ router.post('/portal', async (req, res) => {
     const userId = (req as any).userId as string;
     const stripe = getStripe();
 
-    const userResult = await pool.query(
-      'SELECT stripe_customer_id FROM users WHERE id=$1',
-      [userId]
-    );
+    const customer = await prisma.stripeCustomer.findUnique({
+      where: { userId },
+      select: { customerId: true },
+    });
 
-    if (userResult.rowCount === 0) {
+    if (!customer) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const { stripe_customer_id: customerId } = userResult.rows[0] as { stripe_customer_id: string | null };
-    if (!customerId) {
+    if (!customer.customerId) {
       return res.status(400).json({ error: 'No Stripe customer associated with user' });
     }
 
     const session = await stripe.billingPortal.sessions.create({
-      customer: customerId,
+      customer: customer.customerId,
       return_url: STRIPE_PORTAL_RETURN_URL,
     });
 

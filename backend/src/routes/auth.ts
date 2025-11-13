@@ -1,11 +1,17 @@
 import { Router, Request, Response } from 'express';
-import { pool } from '../config/database';
+import { prisma } from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { sendVerificationEmail } from '../services/emailService';
 import { JWT_SECRET, ACCESS_EXPIRES, ACCESS_SIGNATURE } from '../config/authConfig';
 import { requireAuth } from '../middleware/auth';
+import {
+  ensureDefaultPlans,
+  ensureTrialSubscription,
+  getSubscriptionSummary,
+  subscriptionToResponse,
+} from '../services/subscriptionService';
 
 const router = Router();
 
@@ -51,35 +57,37 @@ router.post('/register', async (req: Request, res: Response) => {
     const normalizedEmail = email.trim().toLowerCase();
     const trimmedName = name.trim();
 
+    const existing = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return res.status(409).json({ error: 'email already exists' });
+    }
+
     const hash = await bcrypt.hash(password, 10);
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
-    await pool.query(
-      `INSERT INTO users(
-         email,
-         password_hash,
-         name,
-         email_verified,
-         verification_token,
-         verification_token_expires,
-         trial_ends_at
-       )
-       VALUES($1,$2,$3,false,$4,$5, now() + INTERVAL '4 hours')
-       ON CONFLICT (email) DO NOTHING`,
-      [normalizedEmail, hash, trimmedName, verificationToken, verificationExpires]
-    );
+    const user = await prisma.user.create({
+      data: {
+        email: normalizedEmail,
+        passwordHash: hash,
+        name: trimmedName,
+        emailVerified: false,
+        verificationToken,
+        verificationTokenExpires: verificationExpires,
+      },
+    });
 
-    const inserted = await pool.query('SELECT id FROM users WHERE email=$1', [normalizedEmail]);
-    if (inserted.rowCount === 0) {
-      return res.status(409).json({ error: 'email already exists' });
-    }
+    await ensureDefaultPlans();
+    await ensureTrialSubscription(user.id);
 
     await sendVerificationEmail(normalizedEmail, verificationToken);
 
     res.status(201).json({ message: 'Verification email sent. Please confirm to activate your account.' });
   } catch (e: any) {
-    if (e?.code === '23505') return res.status(409).json({ error: 'email already exists' });
     res.status(500).json({ error: 'error registering user' });
   }
 });
@@ -88,17 +96,15 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     const normalizedEmail = email?.trim().toLowerCase();
-    const result = await pool.query(
-      `SELECT id, email, password_hash, name, email_verified,
-              plan, subscription_status, trial_ends_at, current_period_end
-       FROM users WHERE email=$1`,
-      [normalizedEmail]
-    );
-    const user = result.rows[0];
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
     if (!user) return res.status(401).json({ error: 'invalid credentials' });
-    const ok = await bcrypt.compare(password, user.password_hash);
+    const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
-    if (!user.email_verified) return res.status(403).json({ error: 'email not verified' });
+    if (!user.emailVerified) return res.status(403).json({ error: 'email not verified' });
+
+    const summary = await getSubscriptionSummary(user.id);
     const token = signAccess(user);
     res.json({
       token,
@@ -106,10 +112,7 @@ router.post('/login', async (req: Request, res: Response) => {
         id: user.id,
         email: user.email,
         name: user.name,
-        plan: user.plan,
-        subscriptionStatus: user.subscription_status,
-        trialEndsAt: user.trial_ends_at ? new Date(user.trial_ends_at).toISOString() : null,
-        currentPeriodEnd: user.current_period_end ? new Date(user.current_period_end).toISOString() : null,
+        ...subscriptionToResponse(summary),
       },
     });
   } catch (e) {
@@ -137,17 +140,23 @@ router.post('/recover', async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
     const normalizedEmail = email?.trim().toLowerCase();
-    const result = await pool.query('SELECT id FROM users WHERE email=$1', [normalizedEmail]);
-    if (result.rowCount === 0) {
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true },
+    });
+    if (!user) {
       // Don't reveal if email exists
       return res.json({ ok: true });
     }
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000); // 1h
-    await pool.query(
-      'UPDATE users SET reset_token=$1, reset_token_expires=$2 WHERE email=$3',
-      [resetToken, expires, normalizedEmail]
-    );
+    await prisma.user.update({
+      where: { email: normalizedEmail },
+      data: {
+        resetToken,
+        resetTokenExpires: expires,
+      },
+    });
     // In production, send email here with reset link
     res.json({ ok: true });
   } catch (e) {
@@ -160,16 +169,25 @@ router.post('/reset', async (req: Request, res: Response) => {
     const { token, password } = req.body;
     const passwordError = validatePassword(password);
     if (passwordError) return res.status(400).json({ error: passwordError });
-    const result = await pool.query(
-      'SELECT id FROM users WHERE reset_token=$1 AND reset_token_expires > now()',
-      [token]
-    );
-    if (result.rowCount === 0) return res.status(400).json({ error: 'invalid or expired token' });
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpires: {
+          gt: new Date(),
+        },
+      },
+      select: { id: true },
+    });
+    if (!user) return res.status(400).json({ error: 'invalid or expired token' });
     const hash = await bcrypt.hash(password, 10);
-    await pool.query(
-      'UPDATE users SET password_hash=$1, reset_token=NULL, reset_token_expires=NULL WHERE reset_token=$2',
-      [hash, token]
-    );
+    await prisma.user.updateMany({
+      where: { resetToken: token },
+      data: {
+        passwordHash: hash,
+        resetToken: null,
+        resetTokenExpires: null,
+      },
+    });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'error resetting password' });
@@ -183,30 +201,31 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'verification token is required' });
     }
 
-    const result = await pool.query(
-      `SELECT id, email FROM users WHERE verification_token=$1 AND verification_token_expires > now()`,
-      [token]
-    );
+    const user = await prisma.user.findFirst({
+      where: {
+        verificationToken: token,
+        verificationTokenExpires: {
+          gt: new Date(),
+        },
+      },
+    });
 
-    if (result.rowCount === 0) {
+    if (!user) {
       return res.status(400).json({ error: 'invalid or expired token' });
     }
 
-    const user = result.rows[0];
+    const verifiedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        verificationToken: null,
+        verificationTokenExpires: null,
+      },
+    });
 
-    const updated = await pool.query(
-      `UPDATE users
-       SET email_verified=true,
-           verification_token=NULL,
-           verification_token_expires=NULL,
-           trial_ends_at=COALESCE(trial_ends_at, now() + INTERVAL '4 hours'),
-           updated_at=now()
-       WHERE id=$1
-       RETURNING id, email, name, plan, subscription_status, trial_ends_at, current_period_end`,
-      [user.id]
-    );
+    await ensureTrialSubscription(verifiedUser.id);
+    const summary = await getSubscriptionSummary(verifiedUser.id);
 
-    const verifiedUser = updated.rows[0];
     const accessToken = signAccess(verifiedUser);
 
     res.json({
@@ -215,10 +234,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
         id: verifiedUser.id,
         email: verifiedUser.email,
         name: verifiedUser.name,
-        plan: verifiedUser.plan,
-        subscriptionStatus: verifiedUser.subscription_status,
-        trialEndsAt: verifiedUser.trial_ends_at ? new Date(verifiedUser.trial_ends_at).toISOString() : null,
-        currentPeriodEnd: verifiedUser.current_period_end ? new Date(verifiedUser.current_period_end).toISOString() : null,
+        ...subscriptionToResponse(summary),
       },
     });
   } catch (e) {
@@ -229,26 +245,21 @@ router.post('/verify-email', async (req: Request, res: Response) => {
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const result = await pool.query(
-      `SELECT id, email, name, plan, subscription_status, trial_ends_at, current_period_end
-       FROM users WHERE id=$1`,
-      [userId]
-    );
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-    if (result.rowCount === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'user not found' });
     }
 
-    const user = result.rows[0];
+    const summary = await getSubscriptionSummary(user.id);
     res.json({
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        plan: user.plan,
-        subscriptionStatus: user.subscription_status,
-        trialEndsAt: user.trial_ends_at ? new Date(user.trial_ends_at).toISOString() : null,
-        currentPeriodEnd: user.current_period_end ? new Date(user.current_period_end).toISOString() : null,
+        ...subscriptionToResponse(summary),
       },
     });
   } catch (e) {

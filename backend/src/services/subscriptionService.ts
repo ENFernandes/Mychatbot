@@ -1,0 +1,200 @@
+import {
+  BillingProvider,
+  PlanCode,
+  Prisma,
+  SubscriptionStatus,
+} from '@prisma/client';
+import { prisma } from '../config/database';
+
+type SubscriptionSummary = {
+  planCode: PlanCode;
+  status: SubscriptionStatus;
+  provider: BillingProvider;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+};
+
+const DEFAULT_PLANS: Array<Prisma.PlanUpsertArgs> = [
+  {
+    where: { code: PlanCode.FREE },
+    update: {
+      name: 'Free',
+      description: 'Free tier with limited capabilities',
+      priceCents: 0,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 0,
+    },
+    create: {
+      code: PlanCode.FREE,
+      name: 'Free',
+      description: 'Free tier with limited capabilities',
+      priceCents: 0,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 0,
+    },
+  },
+  {
+    where: { code: PlanCode.TRIAL },
+    update: {
+      name: 'Trial',
+      description: 'Trial plan for newly registered users',
+      priceCents: 0,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 2,
+    },
+    create: {
+      code: PlanCode.TRIAL,
+      name: 'Trial',
+      description: 'Trial plan for newly registered users',
+      priceCents: 0,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 2,
+    },
+  },
+  {
+    where: { code: PlanCode.PRO },
+    update: {
+      name: 'Pro',
+      description: 'Pro subscription billed monthly',
+      priceCents: 500,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 0,
+    },
+    create: {
+      code: PlanCode.PRO,
+      name: 'Pro',
+      description: 'Pro subscription billed monthly',
+      priceCents: 500,
+      currency: 'usd',
+      interval: 'month',
+      trialPeriodDays: 0,
+    },
+  },
+];
+
+export async function ensureDefaultPlans() {
+  await prisma.$transaction(DEFAULT_PLANS.map((plan) => prisma.plan.upsert(plan)));
+}
+
+export async function ensureTrialSubscription(userId: string) {
+  await ensureDefaultPlans();
+
+  const existing = await prisma.userSubscription.findUnique({
+    where: { userId },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const trialPlan = await prisma.plan.findUnique({ where: { code: PlanCode.TRIAL } });
+  if (!trialPlan) {
+    throw new Error('Trial plan not configured');
+  }
+
+  const now = new Date();
+  const trialEnds =
+    typeof trialPlan.trialPeriodDays === 'number' && trialPlan.trialPeriodDays > 0
+      ? new Date(now.getTime() + trialPlan.trialPeriodDays * 24 * 60 * 60 * 1000)
+      : null;
+
+  return prisma.userSubscription.create({
+    data: {
+      userId,
+      planCode: trialPlan.code,
+      status: SubscriptionStatus.TRIALING,
+      provider: BillingProvider.INTERNAL,
+      trialEndsAt: trialEnds,
+    },
+  });
+}
+
+export async function getSubscriptionSummary(userId: string): Promise<SubscriptionSummary> {
+  const subscription = await prisma.userSubscription.findUnique({
+    where: { userId },
+  });
+
+  if (!subscription) {
+    const created = await ensureTrialSubscription(userId);
+    return {
+      planCode: created.planCode,
+      status: created.status,
+      provider: created.provider,
+      trialEndsAt: created.trialEndsAt,
+      currentPeriodEnd: created.currentPeriodEnd,
+      cancelAtPeriodEnd: created.cancelAtPeriodEnd,
+    };
+  }
+
+  return {
+    planCode: subscription.planCode,
+    status: subscription.status,
+    provider: subscription.provider,
+    trialEndsAt: subscription.trialEndsAt,
+    currentPeriodEnd: subscription.currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+  };
+}
+
+export function isSubscriptionActive(summary: SubscriptionSummary) {
+  if (summary.planCode === PlanCode.PRO || summary.planCode === PlanCode.ENTERPRISE) {
+    return summary.status === SubscriptionStatus.ACTIVE || summary.status === SubscriptionStatus.TRIALING;
+  }
+
+  if (summary.planCode === PlanCode.TRIAL) {
+    if (summary.status === SubscriptionStatus.CANCELED) return false;
+    if (!summary.trialEndsAt) return true;
+    return summary.trialEndsAt.getTime() >= Date.now();
+  }
+
+  return false;
+}
+
+export async function hasActivePaidSubscription(userId: string) {
+  const summary = await getSubscriptionSummary(userId);
+  const isPaidPlan = summary.planCode === PlanCode.PRO || summary.planCode === PlanCode.ENTERPRISE;
+  return isPaidPlan && isSubscriptionActive(summary);
+}
+
+type SubscriptionOverrides = Partial<
+  Pick<SubscriptionSummary, 'planCode' | 'trialEndsAt' | 'currentPeriodEnd' | 'cancelAtPeriodEnd' | 'provider'>
+>;
+
+export async function setSubscriptionStatus(
+  userId: string,
+  status: SubscriptionStatus,
+  overrides: SubscriptionOverrides = {}
+) {
+  await ensureDefaultPlans();
+
+  const current = await ensureTrialSubscription(userId);
+
+  await prisma.userSubscription.update({
+    where: { id: current.id },
+    data: {
+      status,
+      ...(overrides.planCode ? { planCode: overrides.planCode } : {}),
+      ...(overrides.provider ? { provider: overrides.provider } : {}),
+      ...(overrides.trialEndsAt !== undefined ? { trialEndsAt: overrides.trialEndsAt } : {}),
+      ...(overrides.currentPeriodEnd !== undefined ? { currentPeriodEnd: overrides.currentPeriodEnd } : {}),
+      ...(overrides.cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd: overrides.cancelAtPeriodEnd } : {}),
+    },
+  });
+}
+
+export function subscriptionToResponse(summary: SubscriptionSummary) {
+  return {
+    plan: summary.planCode.toLowerCase(),
+    subscriptionStatus: summary.status.toLowerCase(),
+    trialEndsAt: summary.trialEndsAt ? summary.trialEndsAt.toISOString() : null,
+    currentPeriodEnd: summary.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null,
+    cancelAtPeriodEnd: summary.cancelAtPeriodEnd,
+  };
+}
+

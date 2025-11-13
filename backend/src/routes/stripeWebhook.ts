@@ -1,111 +1,184 @@
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
-import { pool } from '../config/database';
+import { BillingProvider, PlanCode, Prisma, SubscriptionStatus } from '@prisma/client';
+import { prisma } from '../config/database';
 import { getStripe } from '../providers/stripeClient';
+import {
+  ensureDefaultPlans,
+  ensureTrialSubscription,
+  setSubscriptionStatus,
+} from '../services/subscriptionService';
 
-function toIso(timestamp: number | null | undefined) {
-  return timestamp ? new Date(timestamp * 1000).toISOString() : null;
+const STATUS_PLAN_DOWNGRADE = new Set<Stripe.Subscription.Status>(['canceled', 'incomplete_expired', 'unpaid']);
+
+const STATUS_MAP: Record<Stripe.Subscription.Status, SubscriptionStatus> = {
+  trialing: SubscriptionStatus.TRIALING,
+  active: SubscriptionStatus.ACTIVE,
+  past_due: SubscriptionStatus.PAST_DUE,
+  canceled: SubscriptionStatus.CANCELED,
+  incomplete: SubscriptionStatus.INCOMPLETE,
+  incomplete_expired: SubscriptionStatus.INCOMPLETE_EXPIRED,
+  unpaid: SubscriptionStatus.UNPAID,
+  paused: SubscriptionStatus.PAUSED,
+};
+
+function toDate(timestamp: number | null | undefined) {
+  return typeof timestamp === 'number' ? new Date(timestamp * 1000) : null;
 }
 
-function resolvePlanFromStatus(status: Stripe.Subscription.Status) {
-  const downgradeStatuses: Stripe.Subscription.Status[] = ['canceled', 'incomplete_expired', 'unpaid'];
-  return downgradeStatuses.includes(status) ? 'trial' : 'pro';
+function resolvePlanFromStatus(status: Stripe.Subscription.Status): PlanCode {
+  return STATUS_PLAN_DOWNGRADE.has(status) ? PlanCode.TRIAL : PlanCode.PRO;
 }
 
-async function updateUserSubscription(options: {
-  userId?: string | null;
-  customerId?: string | Stripe.Customer | null;
-  subscriptionId?: string | null;
-  plan?: 'trial' | 'pro';
-  status?: string | null;
-  trialEndsAt?: string | null;
-  currentPeriodEnd?: string | null;
-}) {
-  const { userId, customerId, subscriptionId, plan, status, trialEndsAt, currentPeriodEnd } = options;
-  const params = [plan, subscriptionId, status, trialEndsAt, currentPeriodEnd];
-
-  if (userId) {
-    await pool.query(
-      `UPDATE users
-       SET plan = COALESCE($1, plan),
-           stripe_subscription_id = COALESCE($2, stripe_subscription_id),
-           subscription_status = COALESCE($3, subscription_status),
-           trial_ends_at = COALESCE($4, trial_ends_at),
-           current_period_end = COALESCE($5, current_period_end),
-           stripe_customer_id = COALESCE($6, stripe_customer_id),
-           updated_at = now()
-       WHERE id = $7`,
-      [...params, customerId ?? null, userId]
-    );
-    return;
-  }
-
-  if (subscriptionId) {
-    await pool.query(
-      `UPDATE users
-       SET plan = COALESCE($1, plan),
-           stripe_subscription_id = COALESCE($2, stripe_subscription_id),
-           subscription_status = COALESCE($3, subscription_status),
-           trial_ends_at = COALESCE($4, trial_ends_at),
-           current_period_end = COALESCE($5, current_period_end),
-           stripe_customer_id = COALESCE($6, stripe_customer_id),
-           updated_at = now()
-       WHERE stripe_subscription_id = $2`,
-      [...params, customerId ?? null]
-    );
-    return;
-  }
-
-  if (customerId) {
-    await pool.query(
-      `UPDATE users
-       SET plan = COALESCE($1, plan),
-           subscription_status = COALESCE($3, subscription_status),
-           trial_ends_at = COALESCE($4, trial_ends_at),
-           current_period_end = COALESCE($5, current_period_end),
-           stripe_subscription_id = COALESCE($2, stripe_subscription_id),
-           stripe_customer_id = COALESCE($6, stripe_customer_id),
-           updated_at = now()
-       WHERE stripe_customer_id = $6`,
-      [...params, customerId ?? null]
-    );
-  }
+function toJsonPayload(value: unknown): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value));
 }
 
-async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
+async function recordSubscriptionEvent(stripeSubscriptionId: string, type: string, payload: unknown) {
+  const subscription = await prisma.stripeSubscription.findUnique({
+    where: { subscriptionId: stripeSubscriptionId },
+    select: { id: true },
+  });
+
+  if (!subscription) return;
+
+  await prisma.subscriptionEvent.create({
+    data: {
+      stripeSubscriptionId: subscription.id,
+      type,
+      payload: toJsonPayload(payload),
+    },
+  });
+}
+
+async function upsertStripeCustomer(
+  customerId: string,
+  userId: string | undefined,
+  email?: string | null
+): Promise<{ id: string; userId: string } | null> {
+  if (!userId) {
+    const existing = await prisma.stripeCustomer.findUnique({
+      where: { customerId },
+      select: { id: true, userId: true },
+    });
+    return existing;
+  }
+
+  await ensureDefaultPlans();
+
+  const customer = await prisma.stripeCustomer.upsert({
+    where: { customerId },
+    update: {
+      email: email ?? undefined,
+    },
+    create: {
+      userId,
+      customerId,
+      email: email ?? undefined,
+    },
+    select: { id: true, userId: true },
+  });
+
+  await ensureTrialSubscription(customer.userId);
+
+  return customer;
+}
+
+async function upsertStripeSubscriptionRecord(subscription: Stripe.Subscription, eventType: string) {
+  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
+  if (!customerId) return;
+
+  const userId = (subscription.metadata?.userId as string | undefined) || undefined;
+  const stripeCustomer = await upsertStripeCustomer(customerId, userId);
+
+  if (!stripeCustomer) return;
+
+  const status = STATUS_MAP[subscription.status] ?? SubscriptionStatus.PAUSED;
+  const planCode = resolvePlanFromStatus(subscription.status);
+  const trialEndsAt = toDate(subscription.trial_end);
+  const currentPeriodStart = toDate(subscription.current_period_start);
+  const currentPeriodEnd = toDate(subscription.current_period_end);
+  const canceledAt = toDate(subscription.canceled_at ?? null);
+
+  const userSubscription = await ensureTrialSubscription(stripeCustomer.userId);
+
+  const rawData = toJsonPayload(subscription);
+
+  const record = await prisma.stripeSubscription.upsert({
+    where: { subscriptionId: subscription.id },
+    update: {
+      stripeCustomerId: stripeCustomer.id,
+      planCode,
+      status,
+      currentPeriodStart: currentPeriodStart ?? undefined,
+      currentPeriodEnd: currentPeriodEnd ?? undefined,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+      canceledAt: canceledAt ?? undefined,
+      rawData,
+      userSubscriptionId: userSubscription.id,
+    },
+    create: {
+      stripeCustomerId: stripeCustomer.id,
+      subscriptionId: subscription.id,
+      planCode,
+      status,
+      currentPeriodStart: currentPeriodStart ?? undefined,
+      currentPeriodEnd: currentPeriodEnd ?? undefined,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+      canceledAt: canceledAt ?? undefined,
+      rawData,
+      userSubscriptionId: userSubscription.id,
+    },
+  });
+
+  await setSubscriptionStatus(stripeCustomer.userId, status, {
+    planCode,
+    provider: BillingProvider.STRIPE,
+    trialEndsAt,
+    currentPeriodEnd,
+    cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+  });
+
+  await recordSubscriptionEvent(subscription.id, eventType, subscription);
+
+  return record;
+}
+
+async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session, eventType: string) {
   const customerId = typeof session.customer === 'string' ? session.customer : session.customer?.id;
   const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
   const userId = session.metadata?.userId ?? undefined;
 
-  if (!customerId) {
+  if (!customerId || !subscriptionId) {
     return;
   }
 
-  await updateUserSubscription({
-    userId,
-    customerId,
-    subscriptionId,
-  });
-}
+  const customer = await upsertStripeCustomer(customerId, userId, session.customer_details?.email);
 
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
-  const subscriptionId = subscription.id;
-  const status = subscription.status;
-  const userId = subscription.metadata?.userId ?? undefined;
-  const plan = resolvePlanFromStatus(status);
-  const trialEndsAt = toIso(subscription.trial_end);
-  const currentPeriodEnd = toIso(subscription.current_period_end);
+  if (!customer) return;
 
-  await updateUserSubscription({
-    userId,
-    customerId,
-    subscriptionId,
-    plan,
-    status,
-    trialEndsAt,
-    currentPeriodEnd,
+  const userSubscription = await ensureTrialSubscription(customer.userId);
+
+  const rawData = toJsonPayload(session);
+
+  await prisma.stripeSubscription.upsert({
+    where: { subscriptionId },
+    update: {
+      stripeCustomerId: customer.id,
+      userSubscriptionId: userSubscription.id,
+      rawData,
+    },
+    create: {
+      stripeCustomerId: customer.id,
+      subscriptionId,
+      status: SubscriptionStatus.INCOMPLETE,
+      planCode: PlanCode.PRO,
+      userSubscriptionId: userSubscription.id,
+      rawData,
+    },
   });
+
+  await recordSubscriptionEvent(subscriptionId, eventType, session);
 }
 
 export async function stripeWebhookHandler(req: Request, res: Response) {
@@ -135,12 +208,12 @@ export async function stripeWebhookHandler(req: Request, res: Response) {
   try {
     switch (event.type) {
       case 'checkout.session.completed':
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session, event.type);
         break;
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted':
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        await upsertStripeSubscriptionRecord(event.data.object as Stripe.Subscription, event.type);
         break;
       default:
         break;
