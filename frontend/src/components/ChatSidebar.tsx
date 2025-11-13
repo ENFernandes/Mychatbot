@@ -218,15 +218,29 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <div>
             <span>Model</span>
           </div>
-          <select 
-            value={model} 
-            onChange={(e) => onModelChange(e.target.value)}
-            className="model-select"
-          >
-            {models.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+          {models.length > 0 ? (
+            <select 
+              value={model} 
+              onChange={(e) => onModelChange(e.target.value)}
+              className="model-select"
+            >
+              {models.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          ) : (
+            <div style={{ 
+              padding: '8px', 
+              borderRadius: '6px', 
+              border: '1px solid #ddd', 
+              backgroundColor: '#f5f5f5',
+              color: '#666',
+              fontSize: '14px',
+              textAlign: 'center'
+            }}>
+              No models available
+            </div>
+          )}
         </div>
 
         {/* Pinned Chats */}

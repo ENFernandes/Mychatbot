@@ -2,7 +2,9 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: var(--spacing-xl) var(--spacing-md);
-  min-height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  padding-bottom: var(--spacing-3xl);
 }
 
 .btn-back {
@@ -56,6 +58,7 @@
   display: grid;
   grid-template-columns: 1fr 1.5fr;
   gap: var(--spacing-xl);
+  align-items: start;
 }
 
 .settings-card {
@@ -65,6 +68,8 @@
   padding: var(--spacing-xl);
   transition: all var(--transition-base);
   box-shadow: var(--shadow-sm);
+  overflow: visible;
+  min-height: fit-content;
 }
 
 .settings-card:hover {
@@ -76,6 +81,14 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+}
+
+.active-clients-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  min-height: fit-content;
+  overflow: visible;
 }
 
 .subscription-details {
@@ -275,6 +288,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
+  overflow: visible;
+  min-height: fit-content;
 }
 
 .key-item {

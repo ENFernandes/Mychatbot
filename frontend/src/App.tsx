@@ -147,18 +147,39 @@ const AppShell: React.FC = () => {
     }
     const fetchModels = async () => {
       try {
-        const { data: modelData } = await api.get(`/models?provider=${provider}`);
-        setModels(modelData.models || []);
-        setModel((modelData.models || [])[0] || '');
-      } catch (e) {
-        const defaults =
-          provider === 'openai'
-            ? ['gpt-5', 'gpt-4o', 'gpt-4.1']
-            : provider === 'gemini'
-            ? ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-1.5-pro']
-            : ['claude-3-5-sonnet-latest', 'claude-3-opus-latest', 'claude-3-haiku-latest'];
-        setModels(defaults);
-        setModel(defaults[0]);
+        const { data: modelResp } = await api.get('/models', {
+          params: { provider },
+        });
+        const modelList = modelResp.models || [];
+        if (modelList.length === 0) {
+          setModels([]);
+          setModel('');
+          console.warn('No models available from provider');
+          return;
+        }
+        setModels(modelList);
+        setModel(modelList[0] || '');
+      } catch (e: any) {
+        // Handle different error cases
+        const status = e?.response?.status;
+        const errorData = e?.response?.data;
+        
+        setModels([]);
+        setModel('');
+        
+        if (status === 404) {
+          // API key not configured
+          console.info(`API key for ${provider} not configured. User needs to add it in Settings.`);
+        } else if (status === 401) {
+          // Invalid API key
+          console.warn(`Invalid API key for ${provider}:`, errorData?.message || e?.message);
+        } else if (status === 503) {
+          // Provider API error
+          console.warn(`Provider API error for ${provider}:`, errorData?.message || e?.message);
+        } else {
+          // Other errors
+          console.error('Error fetching models:', status, errorData?.error || errorData?.message || e?.message);
+        }
       }
     };
     fetchModels();

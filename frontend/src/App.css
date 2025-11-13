@@ -81,9 +81,9 @@
 }
 
 .app-container-authenticated.settings-view {
-  height: auto;
+  height: 100vh;
   min-height: 100vh;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .app-container-landing {
@@ -100,8 +100,11 @@
 }
 
 .main-authenticated.settings-view {
-  min-height: auto;
-  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .main-landing {

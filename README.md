@@ -31,8 +31,12 @@ O serviço Postgres é construído a partir do Dockerfile em `database/`, que ap
 ```bash
 cd backend
 npm install
+npm run prisma:generate
+npm run prisma:push
 npm run dev
 ```
+
+> **Nota:** `npm run prisma:push` necessita de uma instância PostgreSQL acessível (ver secção seguinte). Em produção utilize migrações (`npm run prisma:migrate`).
 
 #### Frontend
 
@@ -174,22 +178,44 @@ docker run -d -p 5432:5432 chatbot-postgres
 Crie um ficheiro `.env` na raiz para produção:
 
 ```
+DATABASE_URL=postgresql://chatbot:chatbot@localhost:5432/chatbot
 JWT_SECRET=seu-jwt-secret-seguro
+ACCESS_SIGNATURE=sig_f5e1d2c4a7b94f6e8c3d1a2b709c4e6
 ENCRYPTION_KEY=sua-chave-de-32-bytes-para-encriptacao
-<<<<<<< Current (Your changes)
+APP_BASE_URL=http://localhost:3000
 STRIPE_SECRET_KEY=sua-chave-secreta-stripe
 STRIPE_PRICE_ID=price_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 STRIPE_SUCCESS_URL=http://localhost:3000/billing-success
 STRIPE_CANCEL_URL=http://localhost:3000/billing-cancel
 STRIPE_PORTAL_RETURN_URL=http://localhost:3000/settings
-=======
-APP_BASE_URL=http://localhost:3000
-ACCESS_SIGNATURE=sig_f5e1d2c4a7b94f6e8c3d1a2b709c4e6
->>>>>>> Incoming (Background Agent changes)
 ```
 
 Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-compose.yml`).
+
+## Prisma & Base de Dados
+
+- Gerar o cliente Prisma após instalar dependências:
+
+  ```bash
+  cd backend
+  npm run prisma:generate
+  ```
+
+- Aplicar o schema ao ambiente de desenvolvimento (cria/atualiza tabelas conforme o modelo atual):
+
+  ```bash
+  npm run prisma:push
+  ```
+
+- Para ambientes controlados use as migrações versionadas. A migração principal de normalização encontra-se em `backend/prisma/migrations/20251111_normalize_subscriptions/migration.sql`.
+  - Execute-a manualmente em bases legadas para copiar dados de `users` para as novas tabelas (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) antes de remover colunas antigas.
+
+- Após atualizações de schema, reconstruir o backend:
+
+  ```bash
+  npm run build
+  ```
 
 ## Stripe Billing
 
@@ -204,6 +230,7 @@ Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-
   ```
 
 - Garanta que o valor exibido (`STRIPE_WEBHOOK_SECRET`) corresponde ao segredo gerado pelo comando anterior.
+- O backend sincroniza clientes, subscrições e eventos Stripe em tabelas dedicadas (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) utilizando Prisma.
 
 ### Fluxo de Subscrição
 

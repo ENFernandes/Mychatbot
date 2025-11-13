@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ConfirmModal from '../components/ConfirmModal';
 import './Settings.css';
 
 interface ApiKey {
@@ -13,24 +14,38 @@ interface SettingsProps {
 }
 
 const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
-  const { plan, subscriptionStatus, trialEndsAt, currentPeriodEnd } = useAuth();
+  const { plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, token } = useAuth();
   const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude'>('openai');
   const [apiKey, setApiKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeKeys, setActiveKeys] = useState<ApiKey[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    provider: string | null;
+  }>({ isOpen: false, provider: null });
 
   useEffect(() => {
-    loadActiveKeys();
-  }, [refreshTrigger]);
+    if (token) {
+      loadActiveKeys();
+    }
+  }, [refreshTrigger, token]);
 
   const loadActiveKeys = async () => {
+    if (!token) {
+      console.warn('No token available, skipping API keys load');
+      return;
+    }
     try {
       const { data } = await api.get('/user/keys');
       setActiveKeys(data.keys || []);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error loading keys:', e);
+      // If 401, token might be expired - don't show error to user
+      if (e?.response?.status === 401) {
+        console.warn('Unauthorized - token may be expired');
+      }
     }
   };
 
@@ -50,19 +65,26 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
   };
 
   const removeClient = async (providerToRemove: string) => {
-    if (!confirm(`Are you sure you want to remove ${getProviderLabel(providerToRemove)}?`)) {
-      return;
-    }
+    setConfirmModal({ isOpen: true, provider: providerToRemove });
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!confirmModal.provider) return;
     
     setLoading(true);
+    setConfirmModal({ isOpen: false, provider: null });
     try {
-      await api.delete(`/user/keys/${providerToRemove}`);
+      await api.delete(`/user/keys/${confirmModal.provider}`);
       setRefreshTrigger(prev => prev + 1);
     } catch (e) {
       alert('Error deleting API key');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCancelRemove = () => {
+    setConfirmModal({ isOpen: false, provider: null });
   };
 
   const getProviderLabel = (provider: string) => {
@@ -126,7 +148,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
           )}
           <h1 className="settings-title">Settings</h1>
         </div>
-        <p className="settings-subtitle">Manage your API keys and preferences</p>
       </div>
 
       <div className="settings-content">
@@ -281,6 +302,17 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title="Remove API Key"
+        message={`Are you sure you want to remove ${confirmModal.provider ? getProviderLabel(confirmModal.provider) : ''}?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        onConfirm={handleConfirmRemove}
+        onCancel={handleCancelRemove}
+        variant="danger"
+      />
     </div>
   );
 };
