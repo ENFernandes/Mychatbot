@@ -174,68 +174,45 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
               Choose the plan that works best for you
             </p>
           </div>
-          <div className="pricing-grid">
-            <div className="pricing-card">
+          <div className="pricing-grid pricing-grid-single">
+            <div className="pricing-card pricing-card-featured pricing-card-unified">
               <div className="pricing-header">
-                <h3 className="pricing-name">Trial</h3>
+                <h3 className="pricing-name">Get Started</h3>
                 <div className="pricing-price">
                   <span className="price-amount">Free</span>
-                  <span className="price-period">2 days</span>
+                  <span className="price-period">4 hours trial</span>
                 </div>
-                <p className="pricing-description">Perfect for testing our platform</p>
+                <p className="pricing-description">Try our platform for free, then continue for just €5/month</p>
+              </div>
+              <div className="pricing-trial-info">
+                <div className="trial-info-item">
+                  <span className="trial-icon">⏱️</span>
+                  <div className="trial-text">
+                    <strong>4 Hours Free Trial</strong>
+                    <span>Full access to test all features</span>
+                  </div>
+                </div>
+                <div className="trial-divider"></div>
+                <div className="trial-info-item">
+                  <span className="trial-icon">💳</span>
+                  <div className="trial-text">
+                    <strong>€5/month</strong>
+                    <span>Continue after trial ends</span>
+                  </div>
+                </div>
               </div>
               <ul className="pricing-features">
                 <li>✓ Full access to all features</li>
-                <li>✓ Multiple AI providers</li>
+                <li>✓ Multiple AI providers (OpenAI, Gemini, Claude)</li>
+                <li>✓ Unlimited conversations</li>
                 <li>✓ Conversation history</li>
                 <li>✓ Email support</li>
               </ul>
-              <button className="btn btn-outline pricing-btn" onClick={onOpenRegister}>
-                Start Free Trial
-              </button>
-            </div>
-
-            <div className="pricing-card pricing-card-featured">
-              <div className="popular-badge">Most Popular</div>
-              <div className="pricing-header">
-                <h3 className="pricing-name">Monthly</h3>
-                <div className="pricing-price">
-                  <span className="price-amount">€5</span>
-                  <span className="price-period">/month</span>
-                </div>
-                <p className="pricing-description">Best for regular users</p>
-              </div>
-              <ul className="pricing-features">
-                <li>✓ Everything in Trial</li>
-                <li>✓ Unlimited conversations</li>
-                <li>✓ Priority support</li>
-                <li>✓ Advanced features</li>
-                <li>✓ API access</li>
-              </ul>
               <button className="btn btn-primary pricing-btn" onClick={onOpenRegister}>
-                Get Started
+                Start Free Trial
+                <span className="btn-arrow">→</span>
               </button>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="cta-section">
-        <div className="section-container">
-          <div className="cta-badge">Get Started</div>
-          <h2 className="cta-title">Ready to Transform Your Conversations?</h2>
-          <p className="cta-description">
-            Join thousands of users already using our platform to deliver exceptional experiences
-          </p>
-          <div className="cta-buttons">
-            <button className="btn btn-primary btn-large" onClick={onOpenRegister}>
-              Start Free Trial
-              <span className="btn-arrow">→</span>
-            </button>
-            <button className="btn btn-secondary btn-large" onClick={onOpenLogin}>
-              Sign In
-            </button>
           </div>
         </div>
       </section>

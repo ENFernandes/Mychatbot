@@ -57,7 +57,7 @@ const Register: React.FC<{ onSwitch: (page: 'login') => void; onSuccess?: () => 
 
   return (
     <div style={{ width: '100%' }}>
-      <h2 style={{ marginBottom: 12, fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>Create Account</h2>
+      <h2 style={{ marginBottom: 12, fontSize: '24px', fontWeight: 700, color: 'var(--color-text, #1a1a1a)' }}>Create Account</h2>
       {error && <div style={{ color: '#b00020', marginBottom: 8, padding: '8px 12px', background: '#ffebee', borderRadius: 6, fontSize: '14px' }}>{error}</div>}
       {success && <div style={{ color: '#1b5e20', marginBottom: 8, padding: '8px 12px', background: '#e8f5e9', borderRadius: 6, fontSize: '14px' }}>{success}</div>}
       <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #ddd', borderRadius: 8, marginBottom: 12, fontSize: '16px', outline: 'none', transition: 'border-color 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#28a745'} onBlur={(e) => e.target.style.borderColor = '#ddd'} />
