@@ -30,7 +30,7 @@ const Login: React.FC<{ onSwitch: (page: 'register' | 'recover') => void }>
 
   return (
     <div style={{ width: '100%' }}>
-      <h2 style={{ marginBottom: 12, fontSize: '24px', fontWeight: 700, color: '#1a1a1a' }}>Login</h2>
+      <h2 style={{ marginBottom: 12, fontSize: '24px', fontWeight: 700, color: 'var(--color-text)' }}>Login</h2>
       {error && <div style={{ color: '#b00020', marginBottom: 8, padding: '8px 12px', background: '#ffebee', borderRadius: 6, fontSize: '14px' }}>{error}</div>}
       <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={handleKeyDown} style={{ width: '100%', padding: 12, border: '1px solid #ddd', borderRadius: 8, marginBottom: 12, fontSize: '16px', outline: 'none', transition: 'border-color 0.2s' }} onFocus={(e) => e.target.style.borderColor = '#007bff'} onBlur={(e) => e.target.style.borderColor = '#ddd'} />
       <div style={{ position: 'relative', marginBottom: 16 }}>

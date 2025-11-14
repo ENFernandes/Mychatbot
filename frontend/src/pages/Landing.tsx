@@ -22,12 +22,12 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
     {
       icon: '💬',
       title: 'Natural Conversations',
-      description: 'Engage with AI-powered chatbots that understand context and provide meaningful responses.',
+      description: 'Use your own API keys and connect directly to the most advanced AI models. Pay only for what you use, with no additional costs.',
     },
     {
       icon: '⚡',
       title: 'Lightning Fast',
-      description: 'Get instant responses with our optimized AI models for seamless user experience.',
+      description: 'Native provider performance with your own API keys. No extra latency, no markup - just direct speed from the best models.',
     },
     {
       icon: '🔒',
@@ -154,10 +154,7 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
                   <div className="feature-icon">{feature.icon}</div>
                 </div>
                 <h3 className="feature-title">{feature.title}</h3>
-                <p className="feature-description">{feature.description}</p>
-                <div className="feature-link">
-                  Learn more <span>→</span>
-                </div>
+                <p className="feature-description">{feature.description}</p>                
               </div>
             ))}
           </div>
