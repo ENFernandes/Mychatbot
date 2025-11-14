@@ -43,7 +43,7 @@ export async function claudeListModels(apiKey: string): Promise<string[]> {
   const ids: string[] = (data.data || [])
     .map((m: any) => m.id as string)
     .filter((id: string) => id && /claude-/.test(id));
-  return ids.slice(0, 3);
+  return ids;
 }
 
 

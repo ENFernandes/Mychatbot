@@ -42,7 +42,6 @@ export async function openaiListModels(apiKey: string): Promise<string[]> {
       .map((m) => ({ id: (m as any).id as string, created: (m as any).created as number }))
       .filter((m) => /gpt|o\b|o-mini|gpt-/.test(m.id))
       .sort((a, b) => (b.created || 0) - (a.created || 0))
-      .slice(0, 3)
       .map((m) => m.id);
     return ids;
   } catch (error: any) {

@@ -50,10 +50,8 @@ export async function geminiListModels(apiKey: string): Promise<string[]> {
   const data = await geminiFetch(apiKey, 'models', { method: 'GET' });
   const ids: string[] = (data.models || [])
     .map((m: any) => m.name as string)
-    .filter((id: string) => id && /gemini-/.test(id))
-    .slice(0, 50);
-  // No stable created field in v1beta; return the first 3 relevant ones
-  return ids.slice(0, 3);
+    .filter((id: string) => id && /gemini-/.test(id));
+  return ids;
 }
 
 
