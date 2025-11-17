@@ -101,9 +101,11 @@ router.get('/', async (req: Request, res: Response) => {
 
     // Decrypt API key
     let apiKey: string;
+    let encryptedKeyBuffer: Buffer | null = null;
+    let ivBuffer: Buffer | null = null;
     try {
-      const encryptedKeyBuffer = toBuffer(keyRecord.encryptedKey);
-      const ivBuffer = toBuffer(keyRecord.iv);
+      encryptedKeyBuffer = toBuffer(keyRecord.encryptedKey);
+      ivBuffer = toBuffer(keyRecord.iv);
       
       // Validate buffer sizes
       if (encryptedKeyBuffer.length < 16) {
@@ -121,13 +123,13 @@ router.get('/', async (req: Request, res: Response) => {
         encryptedKeyType: typeof keyRecord.encryptedKey,
         encryptedKeyConstructor: keyRecord.encryptedKey?.constructor?.name,
         encryptedKeyLength: keyRecord.encryptedKey?.length,
-        encryptedKeyBufferLength: encryptedKeyBuffer.length,
+        encryptedKeyBufferLength: encryptedKeyBuffer?.length,
         encryptedKeyIsBuffer: Buffer.isBuffer(keyRecord.encryptedKey),
         encryptedKeyIsUint8Array: keyRecord.encryptedKey instanceof Uint8Array,
         ivType: typeof keyRecord.iv,
         ivConstructor: keyRecord.iv?.constructor?.name,
         ivLength: keyRecord.iv?.length,
-        ivBufferLength: ivBuffer.length,
+        ivBufferLength: ivBuffer?.length,
         ivIsBuffer: Buffer.isBuffer(keyRecord.iv),
         ivIsUint8Array: keyRecord.iv instanceof Uint8Array,
         note: 'This usually means the encryption key changed or the data was corrupted. Please re-enter the API key in Settings.',
