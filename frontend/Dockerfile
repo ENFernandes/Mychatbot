@@ -3,10 +3,8 @@ WORKDIR /app
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 RUN npm ci || npm install
 COPY . .
-COPY build.sh /app/build.sh
-RUN chmod +x /app/build.sh
-# VITE_API_URL will be injected by Koyeb from service environment variables
-RUN /app/build.sh
+# Build with auto-detected API URL from hostname
+RUN npm run build
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
