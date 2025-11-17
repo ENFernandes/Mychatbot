@@ -111,6 +111,22 @@ docker run -d -p 5432:5432 chatbot-postgres
 
 > Dica: defina `APP_BASE_URL` no backend para que o link gerado aponte para o domínio correto do frontend.
 
+### Emails Transacionais (Resend)
+
+O projeto utiliza o [Resend](https://resend.mintlify.dev/docs/introduction) como serviço de envio:
+
+1. Crie uma conta Resend e adicione o domínio `multiproviderai.me`.
+2. Publique os registos DNS sugeridos (SPF, DKIM e tracking) e aguarde a validação.
+3. Crie uma API Key com permissão de envio.
+4. Defina o endereço `noreply@multiproviderai.me` como remetente principal e opcionalmente um `reply-to` (ex.: `support@multiproviderai.me`).
+5. Configure as variáveis `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` e (opcional) `RESEND_REPLY_TO` no backend.
+6. Ajuste `APP_BASE_URL` para o domínio público (prod: `https://multiproviderai.me`) para que os links de verificação e recuperação apontem para o frontend correto.
+
+Com esta configuração ficam ativos:
+
+- Email de verificação no registo (`/auth/register`)
+- Email de recuperação de password (`/auth/recover`)
+
 ## Estrutura do Projeto
 
 ```
@@ -183,6 +199,10 @@ JWT_SECRET=seu-jwt-secret-seguro
 ACCESS_SIGNATURE=sig_f5e1d2c4a7b94f6e8c3d1a2b709c4e6
 ENCRYPTION_KEY=sua-chave-de-32-bytes-para-encriptacao
 APP_BASE_URL=http://localhost:3000
+RESEND_API_KEY=seu-token-resend
+RESEND_FROM_EMAIL=noreply@multiproviderai.me
+RESEND_FROM_NAME=Multiprovider AI
+RESEND_REPLY_TO=support@multiproviderai.me
 STRIPE_SECRET_KEY=sua-chave-secreta-stripe
 STRIPE_PRICE_ID=price_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
@@ -192,6 +212,8 @@ STRIPE_PORTAL_RETURN_URL=http://localhost:3000/settings
 ```
 
 Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-compose.yml`).
+
+> **Nota:** `RESEND_REPLY_TO` é opcional; se não for definido, os emails serão enviados apenas com o remetente principal `noreply@multiproviderai.me`.
 
 ## Prisma & Base de Dados
 

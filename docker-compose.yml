@@ -23,8 +23,13 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: postgres://chatbot:chatbot@postgres:5432/chatbot
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-in-production}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-dev-encryption-key-32-bytes-change-me}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-noreply@multiproviderai.me}
+      RESEND_FROM_NAME: ${RESEND_FROM_NAME:-Multiprovider AI}
+      RESEND_REPLY_TO: ${RESEND_REPLY_TO:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_PRICE_ID: ${STRIPE_PRICE_ID:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

@@ -3,7 +3,7 @@ import { prisma } from '../config/database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { sendVerificationEmail } from '../services/emailService';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../services/emailService';
 import { JWT_SECRET, ACCESS_EXPIRES, ACCESS_SIGNATURE } from '../config/authConfig';
 import { requireAuth } from '../middleware/auth';
 import {
@@ -157,7 +157,7 @@ router.post('/recover', async (req: Request, res: Response) => {
         resetTokenExpires: expires,
       },
     });
-    // In production, send email here with reset link
+    await sendPasswordResetEmail(normalizedEmail, resetToken);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'error processing request' });
