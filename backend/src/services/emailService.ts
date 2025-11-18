@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:5173';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@multiproviderai.me';
 const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME || 'Multiprovider AI';
@@ -27,16 +27,41 @@ async function dispatchEmail(payload: { to: string; subject: string; html: strin
   }
 
   try {
-    await resendClient.emails.send({
+    const emailPayload: any = {
       from: formatFrom(),
       to: payload.to,
       subject: payload.subject,
       html: payload.html,
       text: payload.text,
-      reply_to: RESEND_REPLY_TO,
+    };
+
+    if (RESEND_REPLY_TO) {
+      emailPayload.reply_to = RESEND_REPLY_TO;
+    }
+
+    console.log('[emailService] Sending email', {
+      from: formatFrom(),
+      to: payload.to,
+      subject: payload.subject,
     });
-  } catch (error) {
-    console.error('[emailService] Failed to send email via Resend', { error });
+
+    const result = await resendClient.emails.send(emailPayload);
+    
+    console.log('[emailService] Email sent successfully', {
+      id: result.data?.id,
+      to: payload.to,
+      subject: payload.subject,
+    });
+
+    return result;
+  } catch (error: any) {
+    console.error('[emailService] Failed to send email via Resend', {
+      error: error.message,
+      status: error.status,
+      response: error.response?.body,
+      to: payload.to,
+      subject: payload.subject,
+    });
     throw error;
   }
 }

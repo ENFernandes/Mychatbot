@@ -11,7 +11,7 @@ import { stripeWebhookHandler } from './routes/stripeWebhook';
 import { openaiChat } from './providers/openaiClient';
 import { geminiChat } from './providers/geminiClient';
 import { claudeChat } from './providers/claudeClient';
-import { connectDatabase, disconnectDatabase, prisma } from './config/database';
+import { connectDatabase, disconnectDatabase, prisma, checkDatabaseConnection } from './config/database';
 import { decrypt, toBuffer } from './services/encryptionService';
 import { requireAuth } from './middleware/auth';
 import { enforceActiveSubscription } from './middleware/subscription';
@@ -132,8 +132,23 @@ app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Reques
   }
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok' });
+app.get('/api/health', async (req: Request, res: Response) => {
+  try {
+    // Check database connection
+    const dbConnected = await checkDatabaseConnection();
+    if (!dbConnected) {
+      return res.status(503).json({ 
+        status: 'unhealthy', 
+        database: 'disconnected' 
+      });
+    }
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error: any) {
+    res.status(503).json({ 
+      status: 'unhealthy', 
+      error: error.message 
+    });
+  }
 });
 
 app.use((err: any, req: Request, res: Response, next: any) => {
