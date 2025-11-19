@@ -12,14 +12,18 @@ const VerifyEmail: React.FC = () => {
 
   useEffect(() => {
     // Prevent multiple verifications
-    if (hasVerified) {
+    if (hasVerified || status !== 'verifying') {
       return;
     }
 
+    let isMounted = true;
+
     const verifyEmail = async () => {
       if (!token) {
-        setStatus('error');
-        setMessage('Token de verificação não encontrado.');
+        if (isMounted) {
+          setStatus('error');
+          setMessage('Token de verificação não encontrado.');
+        }
         return;
       }
 
@@ -27,34 +31,38 @@ const VerifyEmail: React.FC = () => {
         const response = await api.post('/auth/verify-email', { token });
         
         if (response.data?.token && response.data?.user) {
-          setHasVerified(true);
-          
-          // Store the token
-          localStorage.setItem('access_token', response.data.token);
-          
-          setStatus('success');
-          setMessage('Email verificado com sucesso! A redirecionar...');
-          
-          // Redirect to home after 2 seconds
-          setTimeout(() => {
-            window.location.href = '/';
-          }, 2000);
+          if (isMounted) {
+            setHasVerified(true);
+            
+            // Store the token
+            localStorage.setItem('access_token', response.data.token);
+            
+            setStatus('success');
+            setMessage('Email verificado com sucesso! A redirecionar...');
+            
+            // Redirect to home after 2 seconds
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 2000);
+          }
         } else {
-          setStatus('error');
-          setMessage('Resposta inválida do servidor.');
+          if (isMounted) {
+            setStatus('error');
+            setMessage('Resposta inválida do servidor.');
+          }
         }
       } catch (error: any) {
         // Check if error is because email is already verified
         const errorMessage = error?.response?.data?.error || 'Erro ao verificar o email.';
         
-        // If token was already used but email is verified, treat as success
+        // If token was already used, check if user is already verified
         if (errorMessage.includes('invalid or expired token')) {
           // Check if user might already be verified by trying to get user info
           const storedToken = localStorage.getItem('access_token');
           if (storedToken) {
             try {
               const userResponse = await api.get('/auth/me');
-              if (userResponse.data?.user?.emailVerified) {
+              if (userResponse.data?.user?.emailVerified && isMounted) {
                 setStatus('success');
                 setMessage('O seu email já foi verificado anteriormente. A redirecionar...');
                 setTimeout(() => {
@@ -68,13 +76,19 @@ const VerifyEmail: React.FC = () => {
           }
         }
         
-        setStatus('error');
-        setMessage(errorMessage);
+        if (isMounted) {
+          setStatus('error');
+          setMessage(errorMessage);
+        }
       }
     };
 
     verifyEmail();
-  }, [token, hasVerified]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token, hasVerified, status]);
 
   return (
     <div style={{
