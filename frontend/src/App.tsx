@@ -9,6 +9,8 @@ import Landing from './pages/Landing';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
 import VerifyEmail from './pages/VerifyEmail';
+import BillingSuccess from './pages/BillingSuccess';
+import BillingCancel from './pages/BillingCancel';
 import { api } from './services/api';
 import TrialCountdown from './components/TrialCountdown';
 import UpdatePlan from './pages/UpdatePlan';
@@ -221,19 +223,33 @@ const AppShell: React.FC = () => {
     !isBillingLocked &&
     new Date(trialEndsAt).getTime() > Date.now();
 
-  // Check if we're on the verify-email page
-  const [showVerifyEmail, setShowVerifyEmail] = useState(false);
+  // Check if we're on special pages
+  const [showSpecialPage, setShowSpecialPage] = useState<string | null>(null);
   
   useEffect(() => {
+    const pathname = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
     const verifyToken = urlParams.get('token');
-    if (window.location.pathname === '/verify-email' || verifyToken) {
-      setShowVerifyEmail(true);
+    
+    if (pathname === '/verify-email' || verifyToken) {
+      setShowSpecialPage('verify-email');
+    } else if (pathname === '/billing-success') {
+      setShowSpecialPage('billing-success');
+    } else if (pathname === '/billing-cancel') {
+      setShowSpecialPage('billing-cancel');
     }
   }, []);
 
-  if (showVerifyEmail) {
+  if (showSpecialPage === 'verify-email') {
     return <VerifyEmail />;
+  }
+
+  if (showSpecialPage === 'billing-success') {
+    return <BillingSuccess />;
+  }
+
+  if (showSpecialPage === 'billing-cancel') {
+    return <BillingCancel />;
   }
 
   if (!token) {
