@@ -8,6 +8,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Landing from './pages/Landing';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
+import VerifyEmail from './pages/VerifyEmail';
 import { api } from './services/api';
 import TrialCountdown from './components/TrialCountdown';
 import UpdatePlan from './pages/UpdatePlan';
@@ -219,6 +220,21 @@ const AppShell: React.FC = () => {
     !!trialEndsAt &&
     !isBillingLocked &&
     new Date(trialEndsAt).getTime() > Date.now();
+
+  // Check if we're on the verify-email page
+  const [showVerifyEmail, setShowVerifyEmail] = useState(false);
+  
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('token');
+    if (window.location.pathname === '/verify-email' || verifyToken) {
+      setShowVerifyEmail(true);
+    }
+  }, []);
+
+  if (showVerifyEmail) {
+    return <VerifyEmail />;
+  }
 
   if (!token) {
     return (

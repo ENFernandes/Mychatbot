@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const APP_BASE_URL = process.env.APP_BASE_URL || 'http://localhost:3000';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://www.multiproviderai.me';
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@multiproviderai.me';
 const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME || 'Multiprovider AI';
