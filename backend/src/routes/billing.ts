@@ -133,6 +133,7 @@ router.post('/portal', async (req, res) => {
 });
 
 router.post('/cancel', async (req, res) => {
+  console.log('[billing] Cancel subscription endpoint called');
   try {
     const userId = (req as any).userId as string;
     const stripe = getStripe();
