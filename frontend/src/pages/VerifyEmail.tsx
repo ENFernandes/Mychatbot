@@ -3,7 +3,6 @@ import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const VerifyEmail: React.FC = () => {
-  const { login } = useAuth();
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState<string>('A verificar o seu email...');
   
@@ -26,9 +25,6 @@ const VerifyEmail: React.FC = () => {
           // Store the token
           localStorage.setItem('access_token', response.data.token);
           
-          // Reload page to update auth context
-          window.location.reload();
-          
           setStatus('success');
           setMessage('Email verificado com sucesso! A redirecionar...');
           
@@ -48,7 +44,7 @@ const VerifyEmail: React.FC = () => {
     };
 
     verifyEmail();
-  }, [token, login]);
+  }, [token]);
 
   return (
     <div style={{
