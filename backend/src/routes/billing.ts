@@ -132,6 +132,52 @@ router.post('/portal', async (req, res) => {
   }
 });
 
+router.post('/cancel', async (req, res) => {
+  try {
+    const userId = (req as any).userId as string;
+    const stripe = getStripe();
+
+    // Find user's Stripe customer
+    const customer = await prisma.stripeCustomer.findUnique({
+      where: { userId },
+      select: { customerId: true },
+    });
+
+    if (!customer || !customer.customerId) {
+      return res.status(404).json({ error: 'No Stripe subscription found for this user' });
+    }
+
+    // Find active subscription in Stripe
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customer.customerId,
+      status: 'active',
+      limit: 1,
+    });
+
+    if (subscriptions.data.length === 0) {
+      return res.status(404).json({ error: 'No active subscription found' });
+    }
+
+    const subscription = subscriptions.data[0];
+
+    // Cancel the subscription at period end (recommended) or immediately
+    // Using cancel_at_period_end: true to allow user to continue until period ends
+    const canceledSubscription = await stripe.subscriptions.update(subscription.id, {
+      cancel_at_period_end: true,
+    });
+
+    // The webhook will handle updating the database when Stripe processes the cancellation
+    return res.json({ 
+      message: 'Subscription will be canceled at the end of the current billing period',
+      cancelAtPeriodEnd: canceledSubscription.cancel_at_period_end,
+      currentPeriodEnd: new Date(canceledSubscription.current_period_end * 1000).toISOString(),
+    });
+  } catch (error: any) {
+    console.error('Error canceling Stripe subscription', error);
+    return res.status(500).json({ error: 'Unable to cancel subscription' });
+  }
+});
+
 export default router;
 
 
