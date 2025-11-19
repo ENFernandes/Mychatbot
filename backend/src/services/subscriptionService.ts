@@ -15,6 +15,8 @@ type SubscriptionSummary = {
   cancelAtPeriodEnd: boolean;
 };
 
+const TRIAL_DURATION_HOURS = Number(process.env.TRIAL_DURATION_HOURS || '4');
+
 const DEFAULT_PLANS: Array<Prisma.PlanUpsertArgs> = [
   {
     where: { code: PlanCode.FREE },
@@ -44,7 +46,7 @@ const DEFAULT_PLANS: Array<Prisma.PlanUpsertArgs> = [
       priceCents: 0,
       currency: 'usd',
       interval: 'month',
-      trialPeriodDays: 2,
+      trialPeriodDays: 0,
     },
     create: {
       code: PlanCode.TRIAL,
@@ -53,7 +55,7 @@ const DEFAULT_PLANS: Array<Prisma.PlanUpsertArgs> = [
       priceCents: 0,
       currency: 'usd',
       interval: 'month',
-      trialPeriodDays: 2,
+      trialPeriodDays: 0,
     },
   },
   {
@@ -93,21 +95,16 @@ export async function ensureTrialSubscription(userId: string) {
     return existing;
   }
 
-  const trialPlan = await prisma.plan.findUnique({ where: { code: PlanCode.TRIAL } });
-  if (!trialPlan) {
-    throw new Error('Trial plan not configured');
-  }
-
   const now = new Date();
   const trialEnds =
-    typeof trialPlan.trialPeriodDays === 'number' && trialPlan.trialPeriodDays > 0
-      ? new Date(now.getTime() + trialPlan.trialPeriodDays * 24 * 60 * 60 * 1000)
+    !Number.isNaN(TRIAL_DURATION_HOURS) && TRIAL_DURATION_HOURS > 0
+      ? new Date(now.getTime() + TRIAL_DURATION_HOURS * 60 * 60 * 1000)
       : null;
 
   return prisma.userSubscription.create({
     data: {
       userId,
-      planCode: trialPlan.code,
+      planCode: PlanCode.TRIAL,
       status: SubscriptionStatus.TRIALING,
       provider: BillingProvider.INTERNAL,
       trialEndsAt: trialEnds,
