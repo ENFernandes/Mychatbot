@@ -19,6 +19,8 @@ services:
     container_name: chatbot_backend
     depends_on:
       - postgres
+    env_file:
+      - .env
     environment:
       NODE_ENV: production
       PORT: 3001

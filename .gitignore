@@ -37,3 +37,6 @@ Thumbs.db
 
 .sql
 *.sql
+
+*.zip
+koyeb-cli
