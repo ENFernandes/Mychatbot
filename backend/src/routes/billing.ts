@@ -67,7 +67,7 @@ router.post('/checkout', async (req, res) => {
 
     const metadata = { userId };
 
-    const trialExtensionHours = 48;
+    const trialExtensionHours = 4;
     const trialEndTimestamp = Math.floor((Date.now() + trialExtensionHours * 60 * 60 * 1000) / 1000);
 
     const session = await stripe.checkout.sessions.create({
