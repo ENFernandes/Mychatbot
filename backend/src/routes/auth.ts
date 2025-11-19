@@ -84,10 +84,19 @@ router.post('/register', async (req: Request, res: Response) => {
     await ensureDefaultPlans();
     await ensureTrialSubscription(user.id);
 
-    await sendVerificationEmail(normalizedEmail, verificationToken);
+    try {
+      await sendVerificationEmail(normalizedEmail, verificationToken);
+    } catch (emailError: any) {
+      console.error('[auth] Failed to send verification email', {
+        email: normalizedEmail,
+        error: emailError.message,
+      });
+      // Continue anyway - user is created, they can request a new verification email
+    }
 
     res.status(201).json({ message: 'Verification email sent. Please confirm to activate your account.' });
   } catch (e: any) {
+    console.error('[auth] Registration error', { error: e.message, stack: e.stack });
     res.status(500).json({ error: 'error registering user' });
   }
 });
@@ -157,9 +166,21 @@ router.post('/recover', async (req: Request, res: Response) => {
         resetTokenExpires: expires,
       },
     });
-    await sendPasswordResetEmail(normalizedEmail, resetToken);
+    
+    try {
+      await sendPasswordResetEmail(normalizedEmail, resetToken);
+    } catch (emailError: any) {
+      console.error('[auth] Failed to send password reset email', {
+        email: normalizedEmail,
+        error: emailError.message,
+      });
+      // Return error to user so they know the email wasn't sent
+      return res.status(500).json({ error: 'error sending password reset email' });
+    }
+    
     res.json({ ok: true });
-  } catch (e) {
+  } catch (e: any) {
+    console.error('[auth] Password recovery error', { error: e.message, stack: e.stack });
     res.status(500).json({ error: 'error processing request' });
   }
 });
@@ -201,6 +222,42 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'verification token is required' });
     }
 
+    // First check if user is already verified (to handle duplicate requests)
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { verificationToken: token },
+          { emailVerified: true, verificationToken: null },
+        ],
+      },
+    });
+
+    // If user is already verified but token matches, return success
+    if (existingUser && existingUser.emailVerified && !existingUser.verificationToken) {
+      // User already verified, but token was used - check if token was recently used
+      const userWithToken = await prisma.user.findFirst({
+        where: { verificationToken: token },
+      });
+      
+      // If no user found with this token, it means it was already used
+      // But user is verified, so return success
+      if (!userWithToken) {
+        await ensureTrialSubscription(existingUser.id);
+        const summary = await getSubscriptionSummary(existingUser.id);
+        const accessToken = signAccess(existingUser);
+
+        return res.json({
+          token: accessToken,
+          user: {
+            id: existingUser.id,
+            email: existingUser.email,
+            name: existingUser.name,
+            ...subscriptionToResponse(summary),
+          },
+        });
+      }
+    }
+
     const user = await prisma.user.findFirst({
       where: {
         verificationToken: token,
@@ -238,6 +295,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       },
     });
   } catch (e) {
+    console.error('[auth] Error verifying email', e);
     res.status(500).json({ error: 'error verifying email' });
   }
 });

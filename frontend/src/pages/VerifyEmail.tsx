@@ -4,12 +4,18 @@ import { api } from '../services/api';
 const VerifyEmail: React.FC = () => {
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState<string>('A verificar o seu email...');
+  const [hasVerified, setHasVerified] = useState(false);
   
   // Get token from URL
   const urlParams = new URLSearchParams(window.location.search);
   const token = urlParams.get('token');
 
   useEffect(() => {
+    // Prevent multiple verifications
+    if (hasVerified) {
+      return;
+    }
+
     const verifyEmail = async () => {
       if (!token) {
         setStatus('error');
@@ -21,6 +27,8 @@ const VerifyEmail: React.FC = () => {
         const response = await api.post('/auth/verify-email', { token });
         
         if (response.data?.token && response.data?.user) {
+          setHasVerified(true);
+          
           // Store the token
           localStorage.setItem('access_token', response.data.token);
           
@@ -36,14 +44,37 @@ const VerifyEmail: React.FC = () => {
           setMessage('Resposta inválida do servidor.');
         }
       } catch (error: any) {
-        setStatus('error');
+        // Check if error is because email is already verified
         const errorMessage = error?.response?.data?.error || 'Erro ao verificar o email.';
+        
+        // If token was already used but email is verified, treat as success
+        if (errorMessage.includes('invalid or expired token')) {
+          // Check if user might already be verified by trying to get user info
+          const storedToken = localStorage.getItem('access_token');
+          if (storedToken) {
+            try {
+              const userResponse = await api.get('/auth/me');
+              if (userResponse.data?.user?.emailVerified) {
+                setStatus('success');
+                setMessage('O seu email já foi verificado anteriormente. A redirecionar...');
+                setTimeout(() => {
+                  window.location.href = '/';
+                }, 2000);
+                return;
+              }
+            } catch (e) {
+              // Ignore error, proceed with error message
+            }
+          }
+        }
+        
+        setStatus('error');
         setMessage(errorMessage);
       }
     };
 
     verifyEmail();
-  }, [token]);
+  }, [token, hasVerified]);
 
   return (
     <div style={{
