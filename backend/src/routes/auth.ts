@@ -222,43 +222,8 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'verification token is required' });
     }
 
-    // First check if user is already verified (to handle duplicate requests)
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { verificationToken: token },
-          { emailVerified: true, verificationToken: null },
-        ],
-      },
-    });
-
-    // If user is already verified but token matches, return success
-    if (existingUser && existingUser.emailVerified && !existingUser.verificationToken) {
-      // User already verified, but token was used - check if token was recently used
-      const userWithToken = await prisma.user.findFirst({
-        where: { verificationToken: token },
-      });
-      
-      // If no user found with this token, it means it was already used
-      // But user is verified, so return success
-      if (!userWithToken) {
-        await ensureTrialSubscription(existingUser.id);
-        const summary = await getSubscriptionSummary(existingUser.id);
-        const accessToken = signAccess(existingUser);
-
-        return res.json({
-          token: accessToken,
-          user: {
-            id: existingUser.id,
-            email: existingUser.email,
-            name: existingUser.name,
-            ...subscriptionToResponse(summary),
-          },
-        });
-      }
-    }
-
-    const user = await prisma.user.findFirst({
+    // First, try to find user with this token
+    const userWithToken = await prisma.user.findFirst({
       where: {
         verificationToken: token,
         verificationTokenExpires: {
@@ -267,33 +232,42 @@ router.post('/verify-email', async (req: Request, res: Response) => {
       },
     });
 
-    if (!user) {
-      return res.status(400).json({ error: 'invalid or expired token' });
+    // If token is valid, verify the user
+    if (userWithToken) {
+      const verifiedUser = await prisma.user.update({
+        where: { id: userWithToken.id },
+        data: {
+          emailVerified: true,
+          verificationToken: null,
+          verificationTokenExpires: null,
+        },
+      });
+
+      await ensureTrialSubscription(verifiedUser.id);
+      const summary = await getSubscriptionSummary(verifiedUser.id);
+      const accessToken = signAccess(verifiedUser);
+
+      return res.json({
+        token: accessToken,
+        user: {
+          id: verifiedUser.id,
+          email: verifiedUser.email,
+          name: verifiedUser.name,
+          ...subscriptionToResponse(summary),
+        },
+      });
     }
 
-    const verifiedUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        verificationToken: null,
-        verificationTokenExpires: null,
-      },
-    });
-
-    await ensureTrialSubscription(verifiedUser.id);
-    const summary = await getSubscriptionSummary(verifiedUser.id);
-
-    const accessToken = signAccess(verifiedUser);
-
-    res.json({
-      token: accessToken,
-      user: {
-        id: verifiedUser.id,
-        email: verifiedUser.email,
-        name: verifiedUser.name,
-        ...subscriptionToResponse(summary),
-      },
-    });
+    // If token not found, check if user might already be verified
+    // Try to find any user that might have used this token (by checking recently verified users)
+    // Since we can't track which token was used, we'll check if there's a user with emailVerified=true
+    // and no verificationToken (meaning they were verified)
+    // But we can't match the token to the user, so we'll just return an error
+    
+    // However, if the user is already verified and trying to verify again,
+    // we should check if they're authenticated and return success
+    // For now, return error for invalid/expired token
+    return res.status(400).json({ error: 'invalid or expired token' });
   } catch (e) {
     console.error('[auth] Error verifying email', e);
     res.status(500).json({ error: 'error verifying email' });
