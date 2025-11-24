@@ -1,34 +1,34 @@
-# Chatbot Multi-Provider com Autenticação e Persistência
+# Multi-Provider Chatbot with Authentication and Persistence
 
-## Descrição
+## Description
 
-Plataforma completa de chatbot com suporte para múltiplos providers (OpenAI, Google Gemini, Anthropic Claude), sistema de autenticação com JWT, persistência de conversas em PostgreSQL, encriptação de API keys, e containerização Docker.
+Full chatbot platform with native support for multiple providers (OpenAI, Google Gemini, Anthropic Claude), JWT-based authentication, PostgreSQL conversation persistence, API key encryption, and Docker-based containerization.
 
-## Pré-requisitos
+## Prerequisites
 
-- Docker e Docker Compose instalados
-- Contas com API keys dos providers desejados (OpenAI, Gemini, Claude)
+- Docker and Docker Compose installed
+- Accounts with API keys for the desired providers (OpenAI, Gemini, Claude)
 
-## Execução com Docker
+## Run with Docker
 
-### Opção 1: Docker Compose (Recomendado)
+### Option 1: Docker Compose (Recommended)
 
-```bash
+```
 docker-compose up --build
 ```
 
-Isto irá iniciar:
-- PostgreSQL na porta 5432
-- Backend na porta 3001
-- Frontend na porta 3000
+This starts:
+- PostgreSQL on port 5432
+- Backend on port 3001
+- Frontend on port 3000
 
-O serviço Postgres é construído a partir do Dockerfile em `database/`, que aplica automaticamente o esquema necessário na primeira inicialização.
+The Postgres service is built from the Dockerfile in `database/` and automatically applies the required schema on first boot.
 
-### Opção 2: Desenvolvimento Local
+### Option 2: Local Development
 
 #### Backend
 
-```bash
+```
 cd backend
 npm install
 npm run prisma:generate
@@ -36,98 +36,98 @@ npm run prisma:push
 npm run dev
 ```
 
-> **Nota:** `npm run prisma:push` necessita de uma instância PostgreSQL acessível (ver secção seguinte). Em produção utilize migrações (`npm run prisma:migrate`).
+> **Note:** `npm run prisma:push` needs an accessible PostgreSQL instance (see next section). Use migrations in production (`npm run prisma:migrate`).
 
 #### Frontend
 
-```bash
+```
 cd frontend
 npm install
 npm run dev
 ```
 
-#### Base de Dados
+#### Database
 
-Certifique-se que tem PostgreSQL rodando localmente ou use Docker:
+Ensure PostgreSQL is running locally or spin it up with Docker:
 
-```bash
+```
 docker build -t chatbot-postgres database
 docker run -d -p 5432:5432 chatbot-postgres
 ```
 
-## Funcionalidades
+## Features
 
-### Autenticação
-- **Registo de utilizadores**: Criar conta com email e password
-- **Verificação de email**: Contas novas permanecem inativas até confirmação via link enviado
-- **Login**: Autenticação com JWT (sessão de 3 horas)
-- **Política de password**: Mínimo 10 caracteres, incluindo maiúsculas, minúsculas, números e símbolos
-- **Recuperação de password**: Sistema de reset por email
-- **Refresh automático**: Token renovado automaticamente quando o utilizador está ativo
+### Authentication
+- **User registration**: Create an account with email and password
+- **Email verification**: New accounts stay inactive until the user confirms via a link
+- **Login**: JWT authentication with 3-hour sessions
+- **Password policy**: Minimum 10 characters with uppercase, lowercase, digits, and symbols
+- **Password recovery**: Email-based reset flow
+- **Automatic refresh**: Token refreshes automatically while the user is active
 
-### Múltiplos Providers
-- **OpenAI**: Suporte para modelos GPT (incluindo GPT-5) com pesquisa na web nativa
-- **Google Gemini**: Modelos Gemini 2.5 Flash e Pro
-- **Anthropic Claude**: Modelos Claude 3.5 Sonnet e variantes
+### Multiple Providers
+- **OpenAI**: GPT models (including GPT-5) with built-in web search
+- **Google Gemini**: Gemini 2.5 Flash and Pro models
+- **Anthropic Claude**: Claude 3.5 Sonnet and variants
 
-### Gestão de API Keys
-- **Encriptação AES-256-GCM**: Todas as API keys são encriptadas na base de dados
-- **Gestão por utilizador**: Cada utilizador tem as suas próprias keys
-- **Interface Settings**: Página dedicada para configurar keys de cada provider
+### API Key Management
+- **AES-256-GCM encryption**: All API keys are encrypted at rest
+- **Per-user management**: Each user supplies their own keys
+- **Settings UI**: Dedicated page to configure provider keys
 
-### Persistência de Conversas
-- **Histórico completo**: Todas as conversas são guardadas na base de dados
-- **Sidebar de conversas**: Lista todas as conversas do utilizador
-- **Edição de títulos**: Renomear conversas
-- **Eliminação**: Apagar conversas indesejadas
-- **Seleção de conversa**: Carregar mensagens ao clicar numa conversa
+### Conversation Persistence
+- **Full history**: All conversations are stored in the database
+- **Conversation sidebar**: Lists every thread for the current user
+- **Title editing**: Rename conversations
+- **Deletion**: Remove unwanted threads
+- **Conversation selection**: Load past messages by clicking a conversation
 
-### Interface de Chat
-- **Textarea expansível**: Caixa de texto com suporte a múltiplas linhas
-- **Quebra de linha**: Shift+Enter para nova linha, Enter para enviar
-- **Formatação avançada**: 
-  - Títulos com cores diferentes (H1, H2, H3)
-  - Listas formatadas
-  - Texto em negrito e sublinhado
-  - Links clicáveis com nome do domínio
-- **Auto-scroll**: Scroll automático para novas mensagens
-- **Billing Stripe**: Subscrição Pro com trial de 2 dias gerida via Stripe Checkout
+### Chat Interface
+- **Expandable textarea**: Multi-line input field
+- **Line breaks**: Shift+Enter inserts a newline; Enter sends the message
+- **Rich formatting**: 
+  - Colored headings (H1, H2, H3)
+  - Styled lists
+  - Bold and underlined text
+  - Clickable links displaying domain names
+- **Auto-scroll**: Scrolls to the latest message automatically
+- **Stripe billing**: Pro subscription with a 4-hours trial via Stripe Checkout
 
-## Uso
+## Usage
 
-1. Aceda a `http://localhost:3000`
-2. Crie uma conta ou faça login
-3. Configure as suas API keys em Settings
-4. Selecione um provider e modelo no Chat
-5. Comece a conversar - as mensagens serão guardadas automaticamente
-6. Use a sidebar para navegar entre conversas anteriores
+1. Visit `http://localhost:3000`
+2. Register or log in
+3. Configure your API keys in Settings
+4. Choose a provider and model in Chat
+5. Start chatting—messages persist automatically
+6. Use the sidebar to revisit previous conversations
 
-### Fluxo de Verificação de Email
+### Email Verification Flow
 
-1. Submeta o formulário de registo; receberá uma mensagem a confirmar o envio do email de verificação.
-2. Abra o email enviado (mockado no backend via `console.info`) e siga o link `verify-email` fornecido.
-3. O frontend executa a chamada `POST /auth/verify-email` com o token. Em alternativa, faça a chamada manualmente via `curl` ou cliente HTTP.
-4. Após verificação com sucesso, inicie sessão normalmente.
+1. Submit the registration form; the UI confirms the verification email was sent.
+2. Open the email (mocked in the backend via `console.info`) and follow the `verify-email` link.
+3. The frontend calls `POST /auth/verify-email` with the token. You can call it manually via `curl` or any HTTP client.
+4. After a successful verification, log in normally.
 
-> Dica: defina `APP_BASE_URL` no backend para que o link gerado aponte para o domínio correto do frontend.
+> Tip: set `APP_BASE_URL` in the backend so verification links point to the correct frontend domain.
 
-### Emails Transacionais (Resend)
+### Transactional Emails (Resend)
 
-O projeto utiliza o [Resend](https://resend.mintlify.dev/docs/introduction) como serviço de envio:
+The project relies on [Resend](https://resend.mintlify.dev/docs/introduction) for transactional email delivery:
 
-1. Crie uma conta Resend e adicione o domínio `multiproviderai.me`.
-2. Publique os registos DNS sugeridos (SPF, DKIM e tracking) e aguarde a validação.
-3. Crie uma API Key com permissão de envio.
-4. Defina o endereço `noreply@multiproviderai.me` como remetente principal e opcionalmente um `reply-to` (ex.: `support@multiproviderai.me`).
-5. Configure as variáveis `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME` e (opcional) `RESEND_REPLY_TO` no backend.
-6. Ajuste `APP_BASE_URL` para o domínio público (prod: `https://multiproviderai.me`) para que os links de verificação e recuperação apontem para o frontend correto.
+1. Create a Resend account and add the `multiproviderai.me` domain.
+2. Publish the suggested DNS records (SPF, DKIM, tracking) and wait for validation.
+3. Create an API key with send permissions.
+4. Set `noreply@multiproviderai.me` as the primary sender and optionally a reply-to (for example `support@multiproviderai.me`).
+5. Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, `RESEND_FROM_NAME`, and optionally `RESEND_REPLY_TO` in the backend.
+6. Set `APP_BASE_URL` to the public domain (prod: `https://multiproviderai.me`) so verification and recovery links target the correct frontend.
 
-Com esta configuração ficam ativos:
+With this setup enabled:
 
-- Email de verificação no registo (`/auth/register`)
-- Email de recuperação de password (`/auth/recover`)
+- Verification email during registration (`/auth/register`)
+- Password recovery email (`/auth/recover`)
 
-## Estrutura do Projeto
+## Project Structure
 
 ```
 .
@@ -182,28 +182,28 @@ Com esta configuração ficam ativos:
     └── vite.config.ts
 ```
 
-## Tecnologias
+## Tech Stack
 
 - **Backend**: Node.js, Express, TypeScript, PostgreSQL, JWT, bcrypt, AES-256-GCM
 - **Frontend**: React, TypeScript, Vite, Axios
 - **Database**: PostgreSQL 16
-- **Containerização**: Docker, Docker Compose, Nginx
+- **Containerization**: Docker, Docker Compose, Nginx
 
-## Variáveis de Ambiente
+## Environment Variables
 
-Crie um ficheiro `.env` na raiz para produção:
+Create a `.env` file at the project root for production:
 
 ```
 DATABASE_URL=postgresql://chatbot:chatbot@localhost:5432/chatbot
-JWT_SECRET=seu-jwt-secret-seguro
+JWT_SECRET=your-secure-jwt-secret
 ACCESS_SIGNATURE=sig_f5e1d2c4a7b94f6e8c3d1a2b709c4e6
-ENCRYPTION_KEY=sua-chave-de-32-bytes-para-encriptacao
+ENCRYPTION_KEY=your-32-byte-encryption-key
 APP_BASE_URL=http://localhost:3000
-RESEND_API_KEY=seu-token-resend
+RESEND_API_KEY=your-resend-token
 RESEND_FROM_EMAIL=noreply@multiproviderai.me
 RESEND_FROM_NAME=Multiprovider AI
 RESEND_REPLY_TO=support@multiproviderai.me
-STRIPE_SECRET_KEY=sua-chave-secreta-stripe
+STRIPE_SECRET_KEY=your-stripe-secret-key
 STRIPE_PRICE_ID=price_xxx
 STRIPE_WEBHOOK_SECRET=whsec_xxx
 STRIPE_SUCCESS_URL=http://localhost:3000/billing-success
@@ -211,71 +211,71 @@ STRIPE_CANCEL_URL=http://localhost:3000/billing-cancel
 STRIPE_PORTAL_RETURN_URL=http://localhost:3000/settings
 ```
 
-Estas variáveis também podem ser definidas para `docker-compose` (ver `docker-compose.yml`).
+These variables can also be provided to `docker-compose` (see `docker-compose.yml`).
 
-> **Nota:** `RESEND_REPLY_TO` é opcional; se não for definido, os emails serão enviados apenas com o remetente principal `noreply@multiproviderai.me`.
+> **Note:** `RESEND_REPLY_TO` is optional; if omitted, emails use only the primary sender `noreply@multiproviderai.me`.
 
-## Prisma & Base de Dados
+## Prisma & Database
 
-- Gerar o cliente Prisma após instalar dependências:
+- Generate the Prisma client after installing dependencies:
 
-  ```bash
+  ```
   cd backend
   npm run prisma:generate
   ```
 
-- Aplicar o schema ao ambiente de desenvolvimento (cria/atualiza tabelas conforme o modelo atual):
+- Push the schema to the development environment (creates/updates tables to match the current model):
 
-  ```bash
+  ```
   npm run prisma:push
   ```
 
-- Para ambientes controlados use as migrações versionadas. A migração principal de normalização encontra-se em `backend/prisma/migrations/20251111_normalize_subscriptions/migration.sql`.
-  - Execute-a manualmente em bases legadas para copiar dados de `users` para as novas tabelas (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) antes de remover colunas antigas.
+- For controlled environments rely on versioned migrations. The normalization migration lives at `backend/prisma/migrations/20251111_normalize_subscriptions/migration.sql`.
+  - Run it manually on legacy databases to copy data from `users` into the new tables (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) before dropping old columns.
 
-- Após atualizações de schema, reconstruir o backend:
+- Rebuild the backend after schema changes:
 
-  ```bash
+  ```
   npm run build
   ```
 
 ## Stripe Billing
 
-- Crie no Stripe um produto "MyChatbot Pro" com preço recorrente mensal de 5 €.
-- Ative o período experimental (trial) de 2 dias no preço ou configure manualmente ao criar a subscrição (já aplicado no backend).
-- Ajuste `STRIPE_PRICE_ID` com o ID do preço criado.
-- Defina URLs de sucesso/cancelamento para corresponder ao frontend (por padrão `http://localhost:3000/...`).
-- Para receber webhooks em desenvolvimento, utilize o Stripe CLI:
+- Create a Stripe product named "MyChatbot Pro" with a recurring monthly price of EUR 5.
+- Enable a 2-day trial on the price or configure it manually while creating the subscription (already handled in the backend).
+- Set `STRIPE_PRICE_ID` to the price ID you just created.
+- Configure success/cancel URLs to match the frontend (defaults to `http://localhost:3000/...`).
+- To receive webhooks during development, use the Stripe CLI:
 
-  ```bash
+  ```
   stripe listen --forward-to localhost:3001/api/stripe/webhook
   ```
 
-- Garanta que o valor exibido (`STRIPE_WEBHOOK_SECRET`) corresponde ao segredo gerado pelo comando anterior.
-- O backend sincroniza clientes, subscrições e eventos Stripe em tabelas dedicadas (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) utilizando Prisma.
+- Ensure `STRIPE_WEBHOOK_SECRET` matches the secret shown by the command above.
+- The backend syncs Stripe customers, subscriptions, and events into dedicated tables (`plans`, `user_subscriptions`, `stripe_customers`, `stripe_subscriptions`, `subscription_events`) via Prisma.
 
-### Fluxo de Subscrição
+### Subscription Flow
 
-1. Utilizador em trial seleciona **Upgrade** (sidebar ou página de Settings) → backend cria sessão de Checkout com trial de 2 dias.
-2. Após pagamento, o webhook `checkout.session.completed` guarda o `subscription_id` e associa o cliente Stripe.
-3. Eventos `customer.subscription.*` atualizam automaticamente o plano, status e datas do período atual.
-4. Utilizadores Pro podem abrir o **Portal de Billing** para gerir/cancelar a subscrição.
+1. Trial users click **Upgrade** (sidebar or Settings page) → backend creates a Checkout session with a 2-day trial.
+2. After payment, the `checkout.session.completed` webhook stores the `subscription_id` and links the Stripe customer.
+3. `customer.subscription.*` events automatically update plan, status, and period dates.
+4. Pro users can open the **Billing Portal** to manage or cancel the subscription.
 
-## Segurança
+## Security
 
-- Todas as passwords são hasheadas com bcrypt
-- API keys são encriptadas com AES-256-GCM antes de serem guardadas
-- JWT tokens expiram após 3 horas
-- Middleware de autenticação protege todas as rotas sensíveis
-- Refresh tokens automáticos mantêm sessões ativas
-- Políticas de password e verificação de email evitam criação de contas fracas ou não confirmadas
-- Access tokens incluem uma assinatura secreta (`sig`) validada em todas as rotas protegidas
+- Passwords hashed with bcrypt
+- API keys encrypted with AES-256-GCM before storage
+- JWT tokens expire after 3 hours
+- Auth middleware protects sensitive routes
+- Automatic refresh tokens keep active sessions alive
+- Password policy and email verification block weak or unconfirmed accounts
+- Access tokens include a secret signature (`sig`) validated on every protected route
 
-## Testes Manuais Recomendados
+## Recommended Manual Tests
 
-1. **Registo**: Introduza dados válidos e confirme que recebe a mensagem para verificar o email.
-2. **Login bloqueado**: Tente iniciar sessão antes de verificar o email e confirme a resposta `403`.
-3. **Verificação**: Execute `POST /auth/verify-email` com o token e verifique a resposta com JWT.
-4. **Password fraca**: Teste passwords que falham cada regra e confirme o erro apresentado no frontend e backend.
-5. **Reset de password**: Solicite `recover`, obtenha o token e confirme que o endpoint `/auth/reset` rejeita passwords fracas e aceita uma forte.
-
+1. **Registration**: Submit valid data and confirm the verification email notice appears.
+2. **Blocked login**: Attempt to log in before verifying the email and confirm the `403` response.
+3. **Verification**: Call `POST /auth/verify-email` with the token and confirm the JWT response.
+4. **Weak password**: Try passwords that violate each rule and confirm both frontend and backend errors.
+5. **Password reset**: Request `recover`, capture the token, and confirm `/auth/reset` rejects weak passwords but accepts a strong one.
+6. **Stripe subscription**: Start Checkout, finish payment, verify the webhook, and open the billing portal to cancel.
