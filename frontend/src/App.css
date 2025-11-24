@@ -47,6 +47,32 @@
   color: var(--color-text);
 }
 
+.header-legal-links {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.header-legal-links a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted, #666);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.header-legal-links a:hover {
+  color: var(--color-text, #333);
+}
+
+[data-theme="dark"] .header-legal-links a {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .header-legal-links a:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .header-nav {

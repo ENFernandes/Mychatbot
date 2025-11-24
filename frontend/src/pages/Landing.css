@@ -892,6 +892,32 @@
   box-shadow: 0 6px 18px rgba(155, 153, 254, 0.3);
 }
 
+.footer-links {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+}
+
+.footer-links a {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-muted, #666);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.footer-links a:hover {
+  color: var(--color-text, #333);
+}
+
+[data-theme="dark"] .footer-links a {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="dark"] .footer-links a:hover {
+  color: rgba(255, 255, 255, 1);
+}
+
 .footer-copyright {
   font-size: 14px;
   opacity: 0.8;

@@ -11,6 +11,8 @@ import RegisterModal from './components/RegisterModal';
 import VerifyEmail from './pages/VerifyEmail';
 import BillingSuccess from './pages/BillingSuccess';
 import BillingCancel from './pages/BillingCancel';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import { api } from './services/api';
 import TrialCountdown from './components/TrialCountdown';
 import UpdatePlan from './pages/UpdatePlan';
@@ -225,20 +227,40 @@ const AppShell: React.FC = () => {
     new Date(trialEndsAt).getTime() > Date.now();
 
   // Check if we're on special pages
-  const [showSpecialPage, setShowSpecialPage] = useState<string | null>(null);
-  
-  useEffect(() => {
+  const determineSpecialPage = () => {
     const pathname = window.location.pathname;
     const urlParams = new URLSearchParams(window.location.search);
     const verifyToken = urlParams.get('token');
-    
-    if (pathname === '/verify-email' || verifyToken) {
-      setShowSpecialPage('verify-email');
-    } else if (pathname === '/billing-success') {
-      setShowSpecialPage('billing-success');
-    } else if (pathname === '/billing-cancel') {
-      setShowSpecialPage('billing-cancel');
-    }
+
+    if (pathname === '/terms') return 'terms';
+    if (pathname === '/privacy') return 'privacy';
+    if (pathname === '/billing-success') return 'billing-success';
+    if (pathname === '/billing-cancel') return 'billing-cancel';
+    if (pathname === '/verify-email' || verifyToken) return 'verify-email';
+    return null;
+  };
+
+  const [showSpecialPage, setShowSpecialPage] = useState<string | null>(() => determineSpecialPage());
+  
+  useEffect(() => {
+    setShowSpecialPage(determineSpecialPage());
+
+    const handlePopState = () => {
+      setShowSpecialPage(determineSpecialPage());
+    };
+
+    // Also listen for pushstate events (when navigating programmatically)
+    const originalPushState = history.pushState;
+    history.pushState = function(...args) {
+      originalPushState.apply(history, args);
+      setShowSpecialPage(determineSpecialPage());
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      history.pushState = originalPushState;
+    };
   }, []);
 
   if (showSpecialPage === 'verify-email') {
@@ -251,6 +273,14 @@ const AppShell: React.FC = () => {
 
   if (showSpecialPage === 'billing-cancel') {
     return <BillingCancel />;
+  }
+
+  if (showSpecialPage === 'terms') {
+    return <Terms />;
+  }
+
+  if (showSpecialPage === 'privacy') {
+    return <Privacy />;
   }
 
   if (!token) {
@@ -298,9 +328,13 @@ const AppShell: React.FC = () => {
       )}
       <header className="app-header">
         <nav className="header-nav">
-          <div className="header-brand">
-            <img src={BrandIcon} alt="MyChatBots logo" className="header-logo" />
-            <span className="header-name">MyChatBots</span>
+          <div className="header-brand" onClick={() => { window.location.href = '/'; }} role="button" tabIndex={0} onKeyPress={() => { window.location.href = '/'; }}>
+            <img src={BrandIcon} alt="MultiProviderAI logo" className="header-logo" />
+            <span className="header-name">MultiProviderAI</span>
+          </div>
+          <div className="header-legal-links">
+            <a href="/terms">Terms of Use</a>
+            <a href="/privacy">Privacy Policy</a>
           </div>
         </nav>
       </header>

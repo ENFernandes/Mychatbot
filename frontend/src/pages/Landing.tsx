@@ -53,8 +53,8 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
               behavior: 'smooth'
             });
           }} style={{ cursor: 'pointer' }}>
-            <img src={BrandIcon} alt="MyChatBots logo" className="header-logo" />
-            <span className="header-name">MyChatBots</span>
+            <img src={BrandIcon} alt="MultiProviderAI logo" className="header-logo" />
+            <span className="header-name">MultiProviderAI</span>
           </div>
           <div className="header-links">
             <a href="#features" className="header-link" onClick={(e) => {
@@ -220,11 +220,15 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
         <div className="section-container">
           <div className="footer-content">
             <div className="footer-brand">
-              <img src={BrandIcon} alt="MyChatBots logo" className="footer-logo" />
-              <span className="footer-name">MyChatBots</span>
+              <img src={BrandIcon} alt="MultiProviderAI logo" className="footer-logo" />
+              <span className="footer-name">MultiProviderAI</span>
+            </div>
+            <div className="footer-links">
+              <a href="/terms">Terms of Use</a>
+              <a href="/privacy">Privacy Policy</a>
             </div>
             <p className="footer-copyright">
-              © 2024 MyChatBots. All rights reserved.
+              © 2024 MultiProviderAI. All rights reserved.
             </p>
           </div>
         </div>
