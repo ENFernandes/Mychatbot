@@ -15,6 +15,7 @@ import { api } from './services/api';
 import TrialCountdown from './components/TrialCountdown';
 import UpdatePlan from './pages/UpdatePlan';
 import './App.css';
+import BrandIcon from '@frontend/icon/icon.png';
 
 const AppShell: React.FC = () => {
   const { token, plan, trialEndsAt, isBillingLocked, logout } = useAuth();
@@ -298,7 +299,7 @@ const AppShell: React.FC = () => {
       <header className="app-header">
         <nav className="header-nav">
           <div className="header-brand">
-            <span className="header-logo">💬</span>
+            <img src={BrandIcon} alt="MyChatBots logo" className="header-logo" />
             <span className="header-name">MyChatBots</span>
           </div>
         </nav>

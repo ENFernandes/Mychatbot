@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import './Landing.css';
+import BrandIcon from '@frontend/icon/icon.png';
 
 interface LandingProps {
   onOpenLogin: () => void;
@@ -52,7 +53,7 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
               behavior: 'smooth'
             });
           }} style={{ cursor: 'pointer' }}>
-            <span className="header-logo">💬</span>
+            <img src={BrandIcon} alt="MyChatBots logo" className="header-logo" />
             <span className="header-name">MyChatBots</span>
           </div>
           <div className="header-links">
@@ -219,7 +220,7 @@ const Landing: React.FC<LandingProps> = ({ onOpenLogin, onOpenRegister }) => {
         <div className="section-container">
           <div className="footer-content">
             <div className="footer-brand">
-              <span className="footer-logo">💬</span>
+              <img src={BrandIcon} alt="MyChatBots logo" className="footer-logo" />
               <span className="footer-name">MyChatBots</span>
             </div>
             <p className="footer-copyright">

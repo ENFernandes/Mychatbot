@@ -35,7 +35,12 @@
 }
 
 .header-logo {
-  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  object-fit: cover;
+  display: inline-block;
+  box-shadow: 0 8px 20px rgba(155, 153, 254, 0.3);
 }
 
 .header-name {
@@ -53,7 +58,8 @@
   }
 
   .header-logo {
-    font-size: 20px;
+    width: 34px;
+    height: 34px;
   }
 }
 
@@ -68,7 +74,8 @@
   }
 
   .header-logo {
-    font-size: 18px;
+    width: 30px;
+    height: 30px;
   }
 }
 

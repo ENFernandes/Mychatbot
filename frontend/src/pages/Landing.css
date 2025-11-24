@@ -58,7 +58,12 @@
 }
 
 .header-logo {
-  font-size: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  object-fit: cover;
+  display: inline-block;
+  box-shadow: 0 8px 24px rgba(155, 153, 254, 0.35);
 }
 
 .header-links {
@@ -879,7 +884,12 @@
 }
 
 .footer-logo {
-  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  border-radius: 14px;
+  object-fit: cover;
+  display: inline-block;
+  box-shadow: 0 6px 18px rgba(155, 153, 254, 0.3);
 }
 
 .footer-copyright {
