@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
+import './ResetPassword.css';
 
 const ResetPassword: React.FC = () => {
   const [token, setToken] = useState<string>('');
@@ -18,7 +19,7 @@ const ResetPassword: React.FC = () => {
     const resetToken = urlParams.get('token');
     
     if (!resetToken) {
-      setError('Token de recuperação não encontrado.');
+      setError('Reset token not found.');
       setValidating(false);
       return;
     }
@@ -31,7 +32,7 @@ const ResetPassword: React.FC = () => {
         await api.get('/auth/reset/validate', { params: { token: resetToken } });
         setTokenValid(true);
       } catch (e: any) {
-        setError(e?.response?.data?.error || 'Token inválido ou expirado.');
+        setError(e?.response?.data?.error || 'The reset link is invalid or has expired.');
         setTokenValid(false);
       } finally {
         setValidating(false);
@@ -57,12 +58,12 @@ const ResetPassword: React.FC = () => {
 
   const submit = async () => {
     if (!allRequirementsMet) {
-      setError('A password não cumpre todos os requisitos.');
+      setError('Password does not meet all requirements.');
       return;
     }
     
     if (password !== confirmPassword) {
-      setError('As passwords não coincidem.');
+      setError('Passwords do not match.');
       return;
     }
 
@@ -72,7 +73,7 @@ const ResetPassword: React.FC = () => {
       setSuccess(null);
       
       const response = await api.post('/auth/reset', { token, password });
-      setSuccess(response.data.message || 'Password redefinida com sucesso!');
+      setSuccess(response.data.message || 'Password updated successfully!');
       setPassword('');
       setConfirmPassword('');
       
@@ -81,7 +82,7 @@ const ResetPassword: React.FC = () => {
         window.location.href = '/';
       }, 2000);
     } catch (e: any) {
-      setError(e?.response?.data?.error || 'Erro ao redefinir password. Por favor, tente novamente.');
+      setError(e?.response?.data?.error || 'Unable to reset password. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -112,7 +113,7 @@ const ResetPassword: React.FC = () => {
             animation: 'spin 1s linear infinite',
             margin: '0 auto 16px'
           }}></div>
-          <p style={{ color: 'var(--color-text)' }}>A validar token...</p>
+          <p style={{ color: 'var(--color-text)' }}>Validating token...</p>
         </div>
       </div>
     );
@@ -156,14 +157,14 @@ const ResetPassword: React.FC = () => {
             fontWeight: 700, 
             color: 'var(--color-text)' 
           }}>
-            Token Inválido
+            Invalid token
           </h2>
           <p style={{ 
             marginBottom: 24, 
             fontSize: '16px', 
             color: 'var(--color-text-secondary)' 
           }}>
-            {error || 'O link de recuperação é inválido ou expirou.'}
+            {error || 'The reset link is invalid or has expired.'}
           </p>
           <button 
             onClick={() => window.location.href = '/'} 
@@ -178,7 +179,7 @@ const ResetPassword: React.FC = () => {
               fontWeight: 600 
             }}
           >
-            Voltar à página inicial
+            Return to home
           </button>
         </div>
       </div>
@@ -186,36 +187,22 @@ const ResetPassword: React.FC = () => {
   }
 
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      background: 'var(--color-background)',
-      padding: '20px'
-    }}>
-      <div style={{ 
-        maxWidth: 480, 
-        width: '100%',
-        background: 'var(--color-surface)', 
-        padding: 40, 
-        borderRadius: 12, 
-        boxShadow: '0 4px 16px rgba(0,0,0,0.1)' 
-      }}>
+    <div className="reset-password-page">
+      <div className="reset-password-card">
         <h2 style={{ 
           marginBottom: 12, 
           fontSize: '24px', 
           fontWeight: 700, 
           color: 'var(--color-text)' 
         }}>
-          Redefinir Password
+          Reset your password
         </h2>
         <p style={{ 
           marginBottom: 24, 
           fontSize: '14px', 
           color: 'var(--color-text-secondary)' 
         }}>
-          Introduza a sua nova password.
+          Enter and confirm your new password to continue.
         </p>
         
         {error && (
@@ -252,45 +239,22 @@ const ResetPassword: React.FC = () => {
             fontWeight: 600,
             color: 'var(--color-text)' 
           }}>
-            Nova Password
+            New password
           </label>
           <div style={{ position: 'relative' }}>
             <input 
-              placeholder="Password" 
+              className="reset-input"
+              placeholder="New password" 
               type={showPassword ? 'text' : 'password'} 
               value={password} 
               onChange={(e) => setPassword(e.target.value)} 
               onKeyDown={handleKeyDown}
-              style={{ 
-                width: '100%', 
-                padding: 12,
-                paddingRight: 40,
-                border: '1px solid #ddd', 
-                borderRadius: 8, 
-                fontSize: '16px', 
-                outline: 'none', 
-                transition: 'border-color 0.2s' 
-              }} 
-              onFocus={(e) => e.target.style.borderColor = '#007bff'} 
-              onBlur={(e) => e.target.style.borderColor = '#ddd'} 
+              autoComplete="new-password"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              style={{
-                position: 'absolute',
-                right: 8,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#666'
-              }}
+              className="reset-toggle"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? (
@@ -316,45 +280,22 @@ const ResetPassword: React.FC = () => {
             fontWeight: 600,
             color: 'var(--color-text)' 
           }}>
-            Confirmar Password
+            Confirm password
           </label>
           <div style={{ position: 'relative' }}>
             <input 
-              placeholder="Confirmar password" 
+              className="reset-input"
+              placeholder="Confirm password" 
               type={showConfirmPassword ? 'text' : 'password'} 
               value={confirmPassword} 
               onChange={(e) => setConfirmPassword(e.target.value)} 
               onKeyDown={handleKeyDown}
-              style={{ 
-                width: '100%', 
-                padding: 12,
-                paddingRight: 40,
-                border: '1px solid #ddd', 
-                borderRadius: 8, 
-                fontSize: '16px', 
-                outline: 'none', 
-                transition: 'border-color 0.2s' 
-              }} 
-              onFocus={(e) => e.target.style.borderColor = '#007bff'} 
-              onBlur={(e) => e.target.style.borderColor = '#ddd'} 
+              autoComplete="new-password"
             />
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              style={{
-                position: 'absolute',
-                right: 8,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#666'
-              }}
+              className="reset-toggle"
               aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
             >
               {showConfirmPassword ? (
@@ -372,35 +313,29 @@ const ResetPassword: React.FC = () => {
           </div>
         </div>
         
-        <div style={{ 
-          marginBottom: 24, 
-          padding: 16, 
-          background: '#f8f9fa', 
-          borderRadius: 8,
-          fontSize: '13px'
-        }}>
+        <div className="reset-requirements">
           <p style={{ 
             marginBottom: 8, 
             fontWeight: 600, 
             color: 'var(--color-text)' 
           }}>
-            Requisitos da password:
+            Password requirements:
           </p>
           <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--color-text-secondary)' }}>
             <li style={{ color: requirements.length ? '#2e7d32' : '#666' }}>
-              {requirements.length ? '✓' : '○'} Mínimo de 10 caracteres
+              {requirements.length ? '✓' : '○'} At least 10 characters
             </li>
             <li style={{ color: requirements.uppercase ? '#2e7d32' : '#666' }}>
-              {requirements.uppercase ? '✓' : '○'} Pelo menos uma letra maiúscula
+              {requirements.uppercase ? '✓' : '○'} One uppercase letter
             </li>
             <li style={{ color: requirements.lowercase ? '#2e7d32' : '#666' }}>
-              {requirements.lowercase ? '✓' : '○'} Pelo menos uma letra minúscula
+              {requirements.lowercase ? '✓' : '○'} One lowercase letter
             </li>
             <li style={{ color: requirements.number ? '#2e7d32' : '#666' }}>
-              {requirements.number ? '✓' : '○'} Pelo menos um número
+              {requirements.number ? '✓' : '○'} One number
             </li>
             <li style={{ color: requirements.symbol ? '#2e7d32' : '#666' }}>
-              {requirements.symbol ? '✓' : '○'} Pelo menos um símbolo (!@#$%^&*...)
+              {requirements.symbol ? '✓' : '○'} One symbol (!@#$%^&*...)
             </li>
           </ul>
         </div>
@@ -421,19 +356,15 @@ const ResetPassword: React.FC = () => {
             transition: 'background 0.2s' 
           }}
         >
-          {loading ? 'A redefinir...' : 'Redefinir Password'}
+          {loading ? 'Updating...' : 'Reset password'}
         </button>
         
         <div style={{ textAlign: 'center', marginTop: 16 }}>
           <a 
             href="/" 
-            style={{ 
-              color: '#007bff', 
-              textDecoration: 'none', 
-              fontSize: '14px' 
-            }}
+            className="reset-home-link"
           >
-            Voltar à página inicial
+            Return to home
           </a>
         </div>
       </div>
