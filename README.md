@@ -276,9 +276,28 @@ These variables can also be provided to `docker-compose` (see `docker-compose.ym
 ### Subscription Flow
 
 1. Trial users click **Upgrade** (sidebar or Settings page) → backend creates a Checkout session with a 2-day trial.
-2. After payment, the `checkout.session.completed` webhook stores the `subscription_id` and links the Stripe customer.
+2. After payment, the `checkout.session.completed` webhook immediately fetches the subscription from Stripe and upgrades the user to PRO.
 3. `customer.subscription.*` events automatically update plan, status, and period dates.
 4. Pro users can open the **Billing Portal** to manage or cancel the subscription.
+
+### Backfill Stripe Subscriptions
+
+If users paid during trial but weren't upgraded due to missing or delayed webhooks, run the backfill script to sync all Stripe subscriptions:
+
+```bash
+cd backend
+npx ts-node scripts/backfill-stripe-subscriptions.ts
+```
+
+This script:
+- Fetches all subscriptions from Stripe
+- Matches them to users by email (if Stripe customer metadata is missing)
+- Updates the database with correct plan codes and statuses
+- Ensures affected users are properly upgraded to PRO
+
+**Requirements:**
+- `STRIPE_SECRET_KEY` and `DATABASE_URL` must be configured
+- Run in production with caution; test in staging first
 
 ## Security
 
@@ -298,3 +317,39 @@ These variables can also be provided to `docker-compose` (see `docker-compose.ym
 4. **Weak password**: Try passwords that violate each rule and confirm both frontend and backend errors.
 5. **Password reset**: Request `recover`, capture the token, and confirm `/auth/reset` rejects weak passwords but accepts a strong one.
 6. **Stripe subscription**: Start Checkout, finish payment, verify the webhook, and open the billing portal to cancel.
+7. **Trial to PRO upgrade**: Verify immediate plan upgrade when user pays during trial (see below).
+
+### Testing Trial to PRO Upgrade
+
+This test ensures users who pay during the trial period are immediately upgraded to PRO:
+
+1. **Setup**: Start with a fresh user account in trial mode
+   - Register a new user and verify email
+   - Confirm trial is active by checking `/api/auth/me` response shows `plan: "trial"`
+
+2. **Initiate payment during trial**:
+   - Click "Upgrade" or "Update plan" button
+   - Complete Stripe Checkout with test card `4242 4242 4242 4242`
+   - Wait for redirect to success page
+
+3. **Verify immediate upgrade**:
+   - Call `GET /api/auth/me` and verify response shows:
+     - `plan: "pro"`
+     - `subscriptionStatus: "active"` or `"trialing"`
+     - `currentPeriodEnd` is set to a future date
+   - Refresh the frontend and confirm UI reflects PRO status
+   - Verify chat functionality works without trial restrictions
+
+4. **Check database consistency**:
+   ```sql
+   SELECT plan_code, status, provider FROM user_subscriptions WHERE user_id = '<user_id>';
+   -- Should show: plan_code='pro', status='active' or 'trialing', provider='stripe'
+   ```
+
+5. **Verify webhook logs**:
+   - Check backend logs for `[webhook] Synced subscription` message
+   - Confirm no errors during `checkout.session.completed` processing
+
+**Expected behavior**: User plan switches from `trial` to `pro` immediately after payment, even if `customer.subscription.created` webhook is delayed or missing.
+
+**Regression check**: If the test fails (user remains on trial after payment), the webhook sync is broken and needs investigation.

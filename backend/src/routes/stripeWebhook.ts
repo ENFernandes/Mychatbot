@@ -56,12 +56,36 @@ async function upsertStripeCustomer(
   userId: string | undefined,
   email?: string | null
 ): Promise<{ id: string; userId: string } | null> {
+  // If no userId provided, try to find existing customer or lookup by email
   if (!userId) {
     const existing = await prisma.stripeCustomer.findUnique({
       where: { customerId },
       select: { id: true, userId: true },
     });
-    return existing;
+    
+    if (existing) {
+      return existing;
+    }
+
+    // Fallback: try to find user by email if email is provided
+    if (email) {
+      const userByEmail = await prisma.user.findUnique({
+        where: { email: email.trim().toLowerCase() },
+        select: { id: true },
+      });
+      
+      if (userByEmail) {
+        console.log('[webhook] Found user by email fallback:', email);
+        userId = userByEmail.id;
+        // Continue to create the customer record below
+      } else {
+        console.warn('[webhook] No userId in metadata and no user found by email:', email);
+        return null;
+      }
+    } else {
+      console.warn('[webhook] No userId in metadata and no email provided');
+      return null;
+    }
   }
 
   await ensureDefaultPlans();
@@ -153,31 +177,31 @@ async function handleCheckoutSessionCompleted(session: Stripe.Checkout.Session, 
     return;
   }
 
+  // Ignore unpaid or incomplete sessions
+  if (session.payment_status !== 'paid') {
+    console.log('[webhook] Ignoring checkout session with payment_status:', session.payment_status);
+    return;
+  }
+
   const customer = await upsertStripeCustomer(customerId, userId, session.customer_details?.email);
 
   if (!customer) return;
 
-  const userSubscription = await ensureTrialSubscription(customer.userId);
+  // Fetch the full subscription from Stripe to get complete status
+  const stripe = getStripe();
+  let subscription: Stripe.Subscription;
+  try {
+    subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  } catch (err: any) {
+    console.error('[webhook] Failed to retrieve subscription', subscriptionId, err);
+    return;
+  }
 
-  const rawData = toJsonPayload(session);
+  // Use the existing upsertStripeSubscriptionRecord to properly sync the subscription
+  // This will update user_subscriptions with the correct plan_code and status
+  await upsertStripeSubscriptionRecord(subscription, eventType);
 
-  await prisma.stripeSubscription.upsert({
-    where: { subscriptionId },
-    update: {
-      stripeCustomerId: customer.id,
-      userSubscriptionId: userSubscription.id,
-      rawData,
-    },
-    create: {
-      stripeCustomerId: customer.id,
-      subscriptionId,
-      status: SubscriptionStatus.INCOMPLETE,
-      planCode: PlanCode.PRO,
-      userSubscriptionId: userSubscription.id,
-      rawData,
-    },
-  });
-
+  // Record the checkout session event as well
   await recordSubscriptionEvent(subscriptionId, eventType, session);
 }
 
