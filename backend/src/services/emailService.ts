@@ -71,25 +71,25 @@ export async function sendVerificationEmail(email: string, token: string) {
 
   await dispatchEmail({
     to: email,
-    subject: 'Confirme o seu email | Multiprovider AI',
+    subject: 'Confirm your email | Multiprovider AI',
     html: `
-      <p>Olá,</p>
-      <p>Recebemos o seu pedido de criação de conta na Multiprovider AI.</p>
-      <p>Para ativar a sua conta, confirme o seu email no botão abaixo:</p>
-      <p><a href="${verificationLink}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;">Verificar email</a></p>
-      <p>Se não vê o botão, copie e cole o seguinte link no seu navegador:<br />
+      <p>Hello,</p>
+      <p>We received your request to create an account on Multiprovider AI.</p>
+      <p>Please confirm your email address to activate your account:</p>
+      <p><a href="${verificationLink}" style="background:#2563eb;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Verify email</a></p>
+      <p>If the button does not work, copy and paste this link in your browser:<br />
       <a href="${verificationLink}">${verificationLink}</a></p>
-      <p>Este link expira em 24 horas.</p>
-      <p>Obrigado,<br/>Equipa Multiprovider AI</p>
+      <p>This link expires in 24 hours.</p>
+      <p>Thank you,<br/>Multiprovider AI Team</p>
     `,
-    text: `Olá,
+    text: `Hello,
 
-Recebemos o seu pedido de criação de conta na Multiprovider AI.
-Para ativar a sua conta, abra o link abaixo (válido por 24h):
+We received your request to create an account on Multiprovider AI.
+To activate your account, open the link below (valid for 24 hours):
 ${verificationLink}
 
-Obrigado,
-Equipa Multiprovider AI`,
+Thank you,
+Multiprovider AI Team`,
   });
 }
 
@@ -98,27 +98,27 @@ export async function sendPasswordResetEmail(email: string, token: string) {
 
   await dispatchEmail({
     to: email,
-    subject: 'Recupere a sua password | Multiprovider AI',
+    subject: 'Reset your password | Multiprovider AI',
     html: `
-      <p>Olá,</p>
-      <p>Recebemos um pedido para redefinir a sua password na Multiprovider AI.</p>
-      <p>Clique no botão para criar uma nova password (link válido por 1 hora):</p>
-      <p><a href="${resetLink}" style="background:#059669;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;">Redefinir password</a></p>
-      <p>Se não vê o botão, copie e cole o seguinte link no seu navegador:<br />
+      <p>Hello,</p>
+      <p>We received a request to reset the password for your Multiprovider AI account.</p>
+      <p>Click the button below to create a new password (link valid for 1 hour):</p>
+      <p><a href="${resetLink}" style="background:#059669;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;display:inline-block;">Reset password</a></p>
+      <p>If the button does not work, copy and paste this link in your browser:<br />
       <a href="${resetLink}">${resetLink}</a></p>
-      <p>Se não solicitou esta alteração, pode ignorar este email.</p>
-      <p>Obrigado,<br/>Equipa Multiprovider AI</p>
+      <p>If you did not request this change, you can safely ignore this message.</p>
+      <p>Thank you,<br/>Multiprovider AI Team</p>
     `,
-    text: `Olá,
+    text: `Hello,
 
-Recebemos um pedido para redefinir a sua password na Multiprovider AI.
-Crie uma nova password através do link (válido por 1 hora):
+We received a request to reset your Multiprovider AI password.
+Create a new password using the link (valid for 1 hour):
 ${resetLink}
 
-Se não solicitou esta alteração, ignore este email.
+If you did not request this change, you can ignore this email.
 
-Obrigado,
-Equipa Multiprovider AI`,
+Thank you,
+Multiprovider AI Team`,
   });
 }
 
