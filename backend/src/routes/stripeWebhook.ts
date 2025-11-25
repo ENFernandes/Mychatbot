@@ -108,7 +108,7 @@ async function upsertStripeCustomer(
   return customer;
 }
 
-async function upsertStripeSubscriptionRecord(subscription: Stripe.Subscription, eventType: string) {
+export async function upsertStripeSubscriptionRecord(subscription: Stripe.Subscription, eventType: string) {
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id;
   if (!customerId) return;
 

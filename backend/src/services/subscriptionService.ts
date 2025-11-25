@@ -5,6 +5,8 @@ import {
   SubscriptionStatus,
 } from '@prisma/client';
 import { prisma } from '../config/database';
+import { getStripe } from '../providers/stripeClient';
+import { upsertStripeSubscriptionRecord } from '../routes/stripeWebhook';
 
 type SubscriptionSummary = {
   planCode: PlanCode;
@@ -193,5 +195,127 @@ export function subscriptionToResponse(summary: SubscriptionSummary) {
     currentPeriodEnd: summary.currentPeriodEnd ? summary.currentPeriodEnd.toISOString() : null,
     cancelAtPeriodEnd: summary.cancelAtPeriodEnd,
   };
+}
+
+/**
+ * Sincroniza a assinatura do Stripe durante o login para garantir
+ * que o status local está atualizado com o estado real no Stripe.
+ * 
+ * Esta função é chamada durante o login para verificar se há mudanças
+ * na assinatura que não foram capturadas pelos webhooks.
+ * 
+ * Se não houver um stripeCustomer no banco, busca no Stripe por email
+ * e cria o registro se encontrar um cliente com assinatura ativa.
+ */
+export async function syncStripeSubscriptionIfExists(userId: string): Promise<void> {
+  try {
+    // Busca o usuário para obter o email
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+
+    if (!user) {
+      return;
+    }
+
+    // Busca o Stripe customer associado ao usuário
+    let stripeCustomer = await prisma.stripeCustomer.findUnique({
+      where: { userId },
+      select: { customerId: true },
+    });
+
+    const stripe = getStripe();
+    let customerId: string | null = null;
+
+    if (stripeCustomer) {
+      // Já existe registro no banco, usa o customerId
+      customerId = stripeCustomer.customerId;
+    } else {
+      // Não há registro no banco, busca no Stripe por email
+      console.log('[subscription] No Stripe customer in DB, searching Stripe by email:', user.email);
+      
+      const stripeCustomers = await stripe.customers.list({
+        email: user.email,
+        limit: 10,
+      });
+
+      if (stripeCustomers.data.length === 0) {
+        // Não há cliente no Stripe com esse email
+        return;
+      }
+
+      // Verifica se algum cliente tem assinatura ativa ou em trial
+      for (const customer of stripeCustomers.data) {
+        // Busca todas as assinaturas (active, trialing, etc) para verificar se há alguma válida
+        const subscriptions = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'all',
+          limit: 10,
+        });
+
+        // Filtra assinaturas que indicam plano pago (active, trialing, past_due)
+        const validSubscriptions = subscriptions.data.filter(
+          sub => ['active', 'trialing', 'past_due'].includes(sub.status)
+        );
+
+        if (validSubscriptions.length > 0) {
+          // Encontrou cliente com assinatura válida (paga)
+          customerId = customer.id;
+          console.log('[subscription] Found Stripe customer with paid subscription:', customerId, 'status:', validSubscriptions[0].status);
+
+          // Cria o registro no banco de dados
+          await ensureDefaultPlans();
+          
+          const newStripeCustomer = await prisma.stripeCustomer.create({
+            data: {
+              userId,
+              customerId: customer.id,
+              email: customer.email || user.email,
+            },
+            select: { id: true, userId: true },
+          });
+
+          await ensureTrialSubscription(newStripeCustomer.userId);
+          
+          // Sincroniza a assinatura mais recente encontrada
+          const latestSubscription = validSubscriptions.sort(
+            (a, b) => b.created - a.created
+          )[0];
+          
+          await upsertStripeSubscriptionRecord(latestSubscription, 'sync_on_login_email_lookup');
+          
+          console.log('[subscription] Created Stripe customer record and synced subscription for user:', userId);
+          return;
+        }
+      }
+
+      // Se chegou aqui, não encontrou assinatura ativa
+      console.log('[subscription] Found Stripe customer(s) but no active subscriptions for email:', user.email);
+      return;
+    }
+
+    // Se já tinha customerId, busca e sincroniza assinaturas
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: 'all', // Busca todas para pegar a mais recente
+      limit: 1,
+    });
+
+    if (subscriptions.data.length === 0) {
+      return; // Não há assinaturas no Stripe
+    }
+
+    // Pega a assinatura mais recente
+    const latestSubscription = subscriptions.data[0];
+
+    // Reutiliza a lógica do webhook para sincronizar
+    await upsertStripeSubscriptionRecord(latestSubscription, 'sync_on_login');
+    
+    console.log('[subscription] Synced Stripe subscription on login for user:', userId);
+  } catch (error) {
+    // Log mas não falha o login se a sincronização falhar
+    console.error('[subscription] Failed to sync Stripe subscription on login:', error);
+  }
 }
 

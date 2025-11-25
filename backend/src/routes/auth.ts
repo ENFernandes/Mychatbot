@@ -11,6 +11,7 @@ import {
   ensureTrialSubscription,
   getSubscriptionSummary,
   subscriptionToResponse,
+  syncStripeSubscriptionIfExists,
 } from '../services/subscriptionService';
 
 const router = Router();
@@ -112,6 +113,9 @@ router.post('/login', async (req: Request, res: Response) => {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return res.status(401).json({ error: 'invalid credentials' });
     if (!user.emailVerified) return res.status(403).json({ error: 'email not verified' });
+
+    // Sincroniza com Stripe antes de buscar o resumo para garantir dados atualizados
+    await syncStripeSubscriptionIfExists(user.id);
 
     const summary = await getSubscriptionSummary(user.id);
     const token = signAccess(user);
@@ -347,6 +351,9 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: 'user not found' });
     }
+
+    // Sincroniza com Stripe antes de buscar o resumo para garantir dados atualizados
+    await syncStripeSubscriptionIfExists(user.id);
 
     const summary = await getSubscriptionSummary(user.id);
     res.json({
