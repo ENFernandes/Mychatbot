@@ -5,6 +5,7 @@ const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@multiproviderai.me';
 const RESEND_FROM_NAME = process.env.RESEND_FROM_NAME || 'Multiprovider AI';
 const RESEND_REPLY_TO = process.env.RESEND_REPLY_TO;
+const SUPPORT_INBOX_EMAIL = process.env.SUPPORT_INBOX_EMAIL || 'support@multiproviderai.me';
 
 const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
@@ -119,6 +120,46 @@ If you did not request this change, you can ignore this email.
 
 Thank you,
 Multiprovider AI Team`,
+  });
+}
+
+export async function sendSupportEmail(params: {
+  requestId: string;
+  userEmail: string;
+  userName: string;
+  subject: string;
+  category: string;
+  message: string;
+}) {
+  const { requestId, userEmail, userName, subject, category, message } = params;
+
+  await dispatchEmail({
+    to: SUPPORT_INBOX_EMAIL,
+    subject: `[Support #${requestId}] ${subject}`,
+    html: `
+      <h2>New Support Request</h2>
+      <p><strong>Request ID:</strong> ${requestId}</p>
+      <p><strong>From:</strong> ${userName} (${userEmail})</p>
+      <p><strong>Category:</strong> ${category}</p>
+      <p><strong>Subject:</strong> ${subject}</p>
+      <hr />
+      <h3>Message:</h3>
+      <p style="white-space: pre-wrap;">${message}</p>
+      <hr />
+      <p style="color:#666;font-size:12px;">Reply directly to this email to respond to ${userEmail}</p>
+    `,
+    text: `New Support Request
+
+Request ID: ${requestId}
+From: ${userName} (${userEmail})
+Category: ${category}
+Subject: ${subject}
+
+Message:
+${message}
+
+---
+Reply directly to this email to respond to ${userEmail}`,
   });
 }
 

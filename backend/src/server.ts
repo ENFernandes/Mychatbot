@@ -7,6 +7,7 @@ import authRouter from './routes/auth';
 import apiKeysRouter from './routes/apiKeys';
 import conversationsRouter from './routes/conversations';
 import billingRouter from './routes/billing';
+import supportRouter from './routes/support';
 import { stripeWebhookHandler } from './routes/stripeWebhook';
 import { openaiChat } from './providers/openaiClient';
 import { geminiChat } from './providers/geminiClient';
@@ -32,6 +33,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/user/keys', apiKeysRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/billing', billingRouter);
+app.use('/api/support', supportRouter);
 
 function parseProvider(value: string | undefined): ApiProvider | null {
   if (!value) return null;

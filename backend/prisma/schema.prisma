@@ -41,6 +41,13 @@ enum MessageRole {
   ASSISTANT @map("assistant")
 }
 
+enum SupportRequestStatus {
+  OPEN       @map("open")
+  IN_PROGRESS @map("in_progress")
+  RESOLVED   @map("resolved")
+  CLOSED     @map("closed")
+}
+
 model User {
   id                       String              @id @default(uuid())
   email                    String              @unique
@@ -54,10 +61,11 @@ model User {
   createdAt                DateTime            @default(now()) @map("created_at")
   updatedAt                DateTime            @updatedAt @map("updated_at")
 
-  apiKeys        UserApiKey[]
-  conversations  Conversation[]
-  subscription   UserSubscription?
-  stripeCustomer StripeCustomer?
+  apiKeys         UserApiKey[]
+  conversations   Conversation[]
+  subscription    UserSubscription?
+  stripeCustomer  StripeCustomer?
+  supportRequests SupportRequest[]
 
   @@map("users")
 }
@@ -190,5 +198,22 @@ model SubscriptionEvent {
   stripeSubscription StripeSubscription @relation(fields: [stripeSubscriptionId], references: [id], onDelete: Cascade)
 
   @@map("subscription_events")
+}
+
+model SupportRequest {
+  id        String               @id @default(uuid())
+  userId    String               @map("user_id")
+  subject   String
+  category  String
+  message   String               @db.Text
+  status    SupportRequestStatus @default(OPEN)
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("support_requests")
 }
 

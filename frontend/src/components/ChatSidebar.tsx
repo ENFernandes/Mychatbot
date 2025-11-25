@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { api } from '../services/api';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import SupportModal from './SupportModal';
 import './ChatSidebar.css';
 
 type Conversation = { id: string; title: string; created_at: string; updated_at: string };
@@ -38,6 +39,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   });
   const [isSettingsMenuOpen, setIsSettingsMenuOpen] = useState(false);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const settingsWrapperRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
@@ -156,7 +158,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   const handleGetHelp = () => {
     setIsSettingsMenuOpen(false);
-    window.open('mailto:support@mychatbots.com', '_blank');
+    setIsSupportModalOpen(true);
   };
 
   const handleUpgrade = async () => {
@@ -199,8 +201,13 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const isTrialPlan = plan === 'trial';
 
   return (
-    <aside className="chat-sidebar">
-      <div className="sidebar-header">
+    <>
+      <SupportModal 
+        isOpen={isSupportModalOpen} 
+        onClose={() => setIsSupportModalOpen(false)} 
+      />
+      <aside className="chat-sidebar">
+        <div className="sidebar-header">
         <button 
           className="btn-new-chat" 
           onClick={createConversation}
@@ -414,6 +421,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         </div>
       </div>
     </aside>
+    </>
   );
 };
 
