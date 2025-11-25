@@ -18,7 +18,6 @@ const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
 const STRIPE_SUCCESS_URL = process.env.STRIPE_SUCCESS_URL;
 const STRIPE_CANCEL_URL = process.env.STRIPE_CANCEL_URL;
 const STRIPE_PORTAL_RETURN_URL = process.env.STRIPE_PORTAL_RETURN_URL || STRIPE_SUCCESS_URL;
-const TRIAL_DURATION_HOURS = Number(process.env.TRIAL_DURATION_HOURS || '4');
 
 router.post('/checkout', async (req, res) => {
   try {
@@ -68,10 +67,6 @@ router.post('/checkout', async (req, res) => {
 
     const metadata = { userId };
 
-    const trialExtensionHours = !Number.isNaN(TRIAL_DURATION_HOURS) && TRIAL_DURATION_HOURS > 0 ? TRIAL_DURATION_HOURS : 0;
-    const trialEndTimestamp =
-      trialExtensionHours > 0 ? Math.floor((Date.now() + trialExtensionHours * 60 * 60 * 1000) / 1000) : undefined;
-
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
@@ -86,7 +81,6 @@ router.post('/checkout', async (req, res) => {
       cancel_url: STRIPE_CANCEL_URL,
       metadata,
       subscription_data: {
-        ...(trialEndTimestamp ? { trial_end: trialEndTimestamp } : {}),
         metadata,
       },
     });
