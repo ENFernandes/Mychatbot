@@ -1,7 +1,30 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import './Legal.css';
 
 const Terms: React.FC = () => {
+  useEffect(() => {
+    // Ensure body can scroll on this page - use setTimeout to ensure it runs after App.tsx
+    const setupScroll = () => {
+      document.body.style.setProperty('overflow', 'auto', 'important');
+      document.body.style.setProperty('height', 'auto', 'important');
+      document.documentElement.style.setProperty('overflow', 'auto', 'important');
+      document.documentElement.style.setProperty('height', 'auto', 'important');
+    };
+    
+    // Run immediately and also after a short delay to override App.tsx
+    setupScroll();
+    const timeoutId = setTimeout(setupScroll, 100);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      // Reset on unmount
+      document.body.style.removeProperty('overflow');
+      document.body.style.removeProperty('height');
+      document.documentElement.style.removeProperty('overflow');
+      document.documentElement.style.removeProperty('height');
+    };
+  }, []);
+
   return (
     <div className="legal-page">
       <div className="legal-container">

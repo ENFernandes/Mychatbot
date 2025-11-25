@@ -98,6 +98,7 @@ body {
 /* When not authenticated, allow root to expand */
 #root:not(:has(header.app-header)) {
   height: auto;
+  overflow: visible;
 }
 
 html, body {
@@ -115,6 +116,14 @@ body:has(header.app-header) {
 body:not(:has(header.app-header)) {
   height: auto;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Ensure body can scroll on legal pages */
+body:has(.legal-page) {
+  height: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* Smooth scrolling */

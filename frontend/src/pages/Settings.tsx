@@ -25,10 +25,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     isOpen: boolean;
     provider: string | null;
   }>({ isOpen: false, provider: null });
-  const [cancelModal, setCancelModal] = useState<{
-    isOpen: boolean;
-  }>({ isOpen: false });
-  const [cancelLoading, setCancelLoading] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -137,28 +133,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     }
   };
 
-  const handleCancelSubscription = () => {
-    setCancelModal({ isOpen: true });
-  };
-
-  const confirmCancelSubscription = async () => {
-    try {
-      setCancelLoading(true);
-      setCancelModal({ isOpen: false });
-      const { data } = await api.post('/billing/cancel');
-      alert(data.message || 'Subscription cancellation scheduled successfully.');
-      // Refresh user data to update subscription status
-      window.location.reload();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || 'Unable to cancel subscription. Please try again later.');
-    } finally {
-      setCancelLoading(false);
-    }
-  };
-
-  const handleCancelModalClose = () => {
-    setCancelModal({ isOpen: false });
-  };
 
   return (
     <div className="settings-container">
@@ -213,18 +187,9 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
 
           <div className="subscription-actions">
             {plan === 'pro' ? (
-              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                <button className="btn btn-secondary" onClick={openPortal} disabled={billingLoading}>
-                  Manage subscription
-                </button>
-                <button 
-                  className="btn btn-danger" 
-                  onClick={handleCancelSubscription} 
-                  disabled={billingLoading || cancelLoading}
-                >
-                  Cancel subscription
-                </button>
-              </div>
+              <button className="btn btn-secondary" onClick={openPortal} disabled={billingLoading}>
+                Manage subscription
+              </button>
             ) : (
               <button className="btn btn-primary" onClick={startCheckout} disabled={billingLoading}>
                 Upgrade to Pro
@@ -347,17 +312,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
         cancelText="Cancel"
         onConfirm={handleConfirmRemove}
         onCancel={handleCancelRemove}
-        variant="danger"
-      />
-
-      <ConfirmModal
-        isOpen={cancelModal.isOpen}
-        title="Cancel Subscription"
-        message="Are you sure you want to cancel your subscription? Your subscription will remain active until the end of the current billing period, after which you will lose access to Pro features."
-        confirmText="Yes, cancel subscription"
-        cancelText="Keep subscription"
-        onConfirm={confirmCancelSubscription}
-        onCancel={handleCancelModalClose}
         variant="danger"
       />
     </div>
