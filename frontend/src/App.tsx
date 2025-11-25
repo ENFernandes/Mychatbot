@@ -8,7 +8,9 @@ import { ThemeProvider } from './context/ThemeContext';
 import Landing from './pages/Landing';
 import LoginModal from './components/LoginModal';
 import RegisterModal from './components/RegisterModal';
+import RecoverPasswordModal from './components/RecoverPasswordModal';
 import VerifyEmail from './pages/VerifyEmail';
+import ResetPassword from './pages/ResetPassword';
 import BillingSuccess from './pages/BillingSuccess';
 import BillingCancel from './pages/BillingCancel';
 import Terms from './pages/Terms';
@@ -29,6 +31,7 @@ const AppShell: React.FC = () => {
   const [availableProviders, setAvailableProviders] = useState<('openai' | 'gemini' | 'claude')[]>([]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const handleOpenUpdatePlan = useCallback(() => setView('update-plan'), []);
 
@@ -66,6 +69,7 @@ const AppShell: React.FC = () => {
     if (token) {
       setIsLoginModalOpen(false);
       setIsRegisterModalOpen(false);
+      setIsRecoverModalOpen(false);
     }
   }, [token]);
 
@@ -202,6 +206,9 @@ const AppShell: React.FC = () => {
           if (page === 'register') {
             setIsLoginModalOpen(false);
             setIsRegisterModalOpen(true);
+          } else if (page === 'recover') {
+            setIsLoginModalOpen(false);
+            setIsRecoverModalOpen(true);
           }
         }}
       />
@@ -213,6 +220,18 @@ const AppShell: React.FC = () => {
         onSwitch={(page) => {
           if (page === 'login') {
             setIsRegisterModalOpen(false);
+            setIsLoginModalOpen(true);
+          }
+        }}
+      />
+      <RecoverPasswordModal
+        isOpen={isRecoverModalOpen}
+        onClose={() => {
+          setIsRecoverModalOpen(false);
+        }}
+        onSwitch={(page) => {
+          if (page === 'login') {
+            setIsRecoverModalOpen(false);
             setIsLoginModalOpen(true);
           }
         }}
@@ -236,7 +255,8 @@ const AppShell: React.FC = () => {
     if (pathname === '/privacy') return 'privacy';
     if (pathname === '/billing-success') return 'billing-success';
     if (pathname === '/billing-cancel') return 'billing-cancel';
-    if (pathname === '/verify-email' || verifyToken) return 'verify-email';
+    if (pathname === '/verify-email' || (pathname === '/' && verifyToken)) return 'verify-email';
+    if (pathname === '/reset-password') return 'reset-password';
     return null;
   };
 
@@ -265,6 +285,10 @@ const AppShell: React.FC = () => {
 
   if (showSpecialPage === 'verify-email') {
     return <VerifyEmail />;
+  }
+
+  if (showSpecialPage === 'reset-password') {
+    return <ResetPassword />;
   }
 
   if (showSpecialPage === 'billing-success') {

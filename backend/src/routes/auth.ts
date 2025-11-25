@@ -147,18 +147,37 @@ router.post('/refresh', async (req: Request, res: Response) => {
 
 router.post('/recover', async (req: Request, res: Response) => {
   try {
-    const { email } = req.body;
-    const normalizedEmail = email?.trim().toLowerCase();
+    const { email, name } = req.body;
+    
+    // Validate inputs
+    const emailError = validateEmail(email);
+    if (emailError) return res.status(400).json({ error: emailError });
+    
+    const nameError = validateName(name);
+    if (nameError) return res.status(400).json({ error: nameError });
+    
+    const normalizedEmail = email.trim().toLowerCase();
+    const trimmedName = name.trim();
+    
+    // Find user by email
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
-      select: { id: true },
+      select: { id: true, name: true, email: true },
     });
-    if (!user) {
-      // Don't reveal if email exists
-      return res.json({ ok: true });
+    
+    // Check if user exists and name matches (case-insensitive)
+    if (!user || user.name?.trim().toLowerCase() !== trimmedName.toLowerCase()) {
+      console.log('[auth] Password recovery failed - invalid credentials', {
+        email: normalizedEmail,
+        providedName: trimmedName,
+      });
+      return res.status(400).json({ error: 'Os dados fornecidos não estão corretos ou não existem na base de dados.' });
     }
+    
+    // Generate reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
     const expires = new Date(Date.now() + 3600000); // 1h
+    
     await prisma.user.update({
       where: { email: normalizedEmail },
       data: {
@@ -167,29 +186,35 @@ router.post('/recover', async (req: Request, res: Response) => {
       },
     });
     
+    // Send password reset email
     try {
       await sendPasswordResetEmail(normalizedEmail, resetToken);
+      console.log('[auth] Password reset email sent successfully', {
+        email: normalizedEmail,
+      });
     } catch (emailError: any) {
       console.error('[auth] Failed to send password reset email', {
         email: normalizedEmail,
         error: emailError.message,
       });
-      // Return error to user so they know the email wasn't sent
-      return res.status(500).json({ error: 'error sending password reset email' });
+      return res.status(500).json({ error: 'Erro ao enviar email de recuperação. Por favor, tente novamente.' });
     }
     
-    res.json({ ok: true });
+    res.json({ ok: true, message: 'Email de recuperação enviado com sucesso.' });
   } catch (e: any) {
     console.error('[auth] Password recovery error', { error: e.message, stack: e.stack });
-    res.status(500).json({ error: 'error processing request' });
+    res.status(500).json({ error: 'Erro ao processar pedido. Por favor, tente novamente.' });
   }
 });
 
-router.post('/reset', async (req: Request, res: Response) => {
+router.get('/reset/validate', async (req: Request, res: Response) => {
   try {
-    const { token, password } = req.body;
-    const passwordError = validatePassword(password);
-    if (passwordError) return res.status(400).json({ error: passwordError });
+    const token = req.query.token as string;
+    
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token é obrigatório.' });
+    }
+    
     const user = await prisma.user.findFirst({
       where: {
         resetToken: token,
@@ -199,7 +224,43 @@ router.post('/reset', async (req: Request, res: Response) => {
       },
       select: { id: true },
     });
-    if (!user) return res.status(400).json({ error: 'invalid or expired token' });
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Token inválido ou expirado.' });
+    }
+    
+    res.json({ valid: true });
+  } catch (e: any) {
+    console.error('[auth] Error validating reset token', { error: e.message });
+    res.status(500).json({ error: 'Erro ao validar token.' });
+  }
+});
+
+router.post('/reset', async (req: Request, res: Response) => {
+  try {
+    const { token, password } = req.body;
+    
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Token é obrigatório.' });
+    }
+    
+    const passwordError = validatePassword(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpires: {
+          gt: new Date(),
+        },
+      },
+      select: { id: true },
+    });
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Token inválido ou expirado.' });
+    }
+    
     const hash = await bcrypt.hash(password, 10);
     await prisma.user.updateMany({
       where: { resetToken: token },
@@ -209,9 +270,11 @@ router.post('/reset', async (req: Request, res: Response) => {
         resetTokenExpires: null,
       },
     });
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: 'error resetting password' });
+    
+    res.json({ ok: true, message: 'Password redefinida com sucesso.' });
+  } catch (e: any) {
+    console.error('[auth] Error resetting password', { error: e.message });
+    res.status(500).json({ error: 'Erro ao redefinir password.' });
   }
 });
 

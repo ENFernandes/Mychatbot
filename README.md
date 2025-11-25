@@ -62,7 +62,11 @@ docker run -d -p 5432:5432 chatbot-postgres
 - **Email verification**: New accounts stay inactive until the user confirms via a link
 - **Login**: JWT authentication with 3-hour sessions
 - **Password policy**: Minimum 10 characters with uppercase, lowercase, digits, and symbols
-- **Password recovery**: Email-based reset flow
+- **Password recovery**: Email-based reset flow requiring both name and email verification
+  - Users request password reset via modal on login page
+  - System validates both name and email match before sending recovery link
+  - Reset link expires after 1 hour
+  - New password must meet all security requirements
 - **Automatic refresh**: Token refreshes automatically while the user is active
 
 ### Multiple Providers
@@ -110,6 +114,21 @@ docker run -d -p 5432:5432 chatbot-postgres
 4. After a successful verification, log in normally.
 
 > Tip: set `APP_BASE_URL` in the backend so verification links point to the correct frontend domain.
+
+### Password Recovery Flow
+
+1. Click "Recover password" on the login page to open the recovery modal.
+2. Enter your **name** and **email** (both are required for security).
+3. If the credentials match, you'll receive a password reset email with a link valid for 1 hour.
+4. Click the link to open the reset password page (`/reset-password?token=...`).
+5. Enter your new password (must meet all security requirements: 10+ characters, uppercase, lowercase, number, and symbol).
+6. Submit to reset your password and automatically redirect to login.
+
+**Security Notes:**
+- The system validates both name and email before sending the recovery email
+- Invalid credentials return a generic error message to prevent user enumeration
+- Reset tokens expire after 1 hour
+- The token is validated before showing the password reset form
 
 ### Transactional Emails (Resend)
 
