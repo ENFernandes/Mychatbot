@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import SupportModal from './SupportModal';
 import './ChatSidebar.css';
 
-type Conversation = { id: string; title: string; created_at: string; updated_at: string };
+type Conversation = { id: string; title: string; pinned: boolean; created_at: string; updated_at: string };
 
 interface ChatSidebarProps {
   activeId: string | null;
@@ -32,7 +32,6 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
-  const [pinnedItems, setPinnedItems] = useState<string[]>([]);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({
     pinned: false,
     recent: false,
@@ -115,12 +114,26 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     }
   };
 
-  const togglePin = (id: string) => {
-    setPinnedItems(prev => 
-      prev.includes(id) 
-        ? prev.filter(i => i !== id)
-        : [...prev, id]
-    );
+  const togglePin = async (id: string) => {
+    const conversation = items.find(item => item.id === id);
+    if (!conversation) return;
+    
+    const newPinnedState = !conversation.pinned;
+    
+    // Optimistically update the UI
+    setItems(prev => prev.map(item => 
+      item.id === id ? { ...item, pinned: newPinnedState } : item
+    ));
+    
+    try {
+      await api.patch(`/conversations/${id}`, { pinned: newPinnedState });
+    } catch (error) {
+      // Revert on error
+      setItems(prev => prev.map(item => 
+        item.id === id ? { ...item, pinned: !newPinnedState } : item
+      ));
+      console.error('Failed to update pin state', error);
+    }
   };
 
   const toggleSection = (section: string) => {
@@ -142,11 +155,11 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   };
 
   const recentItems = items
-    .filter(item => !pinnedItems.includes(item.id))
+    .filter(item => !item.pinned)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 10);
 
-  const pinnedConversations = items.filter(item => pinnedItems.includes(item.id));
+  const pinnedConversations = items.filter(item => item.pinned);
   const userInitial = (user?.name || user?.email || 'U').charAt(0).toUpperCase();
   const planLabel = plan === 'pro' ? 'Pro plan' : 'Trial plan';
   const subscriptionLabel = subscriptionStatus ? subscriptionStatus.replace(/_/g, ' ') : null;

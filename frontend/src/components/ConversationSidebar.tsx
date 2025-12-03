@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 
-type Conversation = { id: string; title: string; created_at: string; updated_at: string };
+type Conversation = { id: string; title: string; pinned: boolean; created_at: string; updated_at: string };
 
 const ConversationSidebar: React.FC<{
   activeId: string | null;

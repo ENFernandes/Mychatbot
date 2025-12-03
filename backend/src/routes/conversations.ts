@@ -15,6 +15,7 @@ router.get('/', async (req: Request, res: Response) => {
     select: {
       id: true,
       title: true,
+      pinned: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -25,6 +26,7 @@ router.get('/', async (req: Request, res: Response) => {
     conversations: conversations.map((conv) => ({
       id: conv.id,
       title: conv.title,
+      pinned: conv.pinned,
       created_at: conv.createdAt,
       updated_at: conv.updatedAt,
     })),
@@ -59,11 +61,21 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
   const { id } = req.params;
-  const { title } = req.body as { title: string };
+  const { title, pinned } = req.body as { title?: string; pinned?: boolean };
+
+  const data: { title?: string; pinned?: boolean } = {};
+  
+  if (title !== undefined) {
+    data.title = title?.trim() || 'New conversation';
+  }
+  
+  if (pinned !== undefined) {
+    data.pinned = pinned;
+  }
 
   await prisma.conversation.updateMany({
     where: { id, userId },
-    data: { title: title?.trim() || 'New conversation' },
+    data,
   });
 
   res.json({ ok: true });

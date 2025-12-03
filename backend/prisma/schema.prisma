@@ -108,6 +108,7 @@ model Conversation {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
   title     String    @default("New conversation")
+  pinned    Boolean   @default(false)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
