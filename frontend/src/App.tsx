@@ -35,6 +35,7 @@ const AppShell: React.FC = () => {
   const [models, setModels] = useState<string[]>([]);
   const [model, setModel] = useState<string>('');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [availableProviders, setAvailableProviders] = useState<('openai' | 'gemini' | 'claude')[]>([]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
@@ -415,6 +416,8 @@ const AppShell: React.FC = () => {
               models={models}
               onSettingsClick={() => setView('settings')}
               hasConfiguredClient={availableProviders.length > 0}
+              activeProjectId={activeProjectId}
+              onProjectChange={setActiveProjectId}
             />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               {availableProviders.length > 0 && (
@@ -443,7 +446,7 @@ const AppShell: React.FC = () => {
                 </div>
               )}
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} isAgentMode={isAgentMode} selectedWorkflowId={selectedWorkflowId} />
+                <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} isAgentMode={isAgentMode} selectedWorkflowId={selectedWorkflowId} activeProjectId={activeProjectId} />
               </div>
             </div>
           </div>

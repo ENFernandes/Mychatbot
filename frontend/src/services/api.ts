@@ -132,4 +132,69 @@ export async function deleteFile(fileId: string): Promise<void> {
   await api.delete(`/files/${fileId}`);
 }
 
+// Project types
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  conversation_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectsResponse {
+  projects: Project[];
+}
+
+/**
+ * Get all projects for the current user
+ */
+export async function getProjects(): Promise<Project[]> {
+  const { data } = await api.get<ProjectsResponse>('/projects');
+  return data.projects;
+}
+
+/**
+ * Create a new project
+ */
+export async function createProject(name: string, description?: string): Promise<Project> {
+  const { data } = await api.post<Project>('/projects', { name, description });
+  return data;
+}
+
+/**
+ * Update a project
+ */
+export async function updateProject(
+  projectId: string,
+  updates: { name?: string; description?: string }
+): Promise<void> {
+  await api.patch(`/projects/${projectId}`, updates);
+}
+
+/**
+ * Delete a project
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  await api.delete(`/projects/${projectId}`);
+}
+
+/**
+ * Get conversations in a project
+ */
+export async function getProjectConversations(projectId: string): Promise<any[]> {
+  const { data } = await api.get(`/projects/${projectId}/conversations`);
+  return data.conversations;
+}
+
+/**
+ * Move a conversation to a project (or remove from project if projectId is null)
+ */
+export async function moveConversationToProject(
+  conversationId: string,
+  projectId: string | null
+): Promise<void> {
+  await api.patch(`/conversations/${conversationId}`, { projectId });
+}
+
 

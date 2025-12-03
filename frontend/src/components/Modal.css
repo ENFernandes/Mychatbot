@@ -25,6 +25,7 @@
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
   animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -63,6 +64,7 @@
 
 .modal-content {
   padding: 40px;
+  padding-bottom: 32px;
 }
 
 @keyframes fadeIn {

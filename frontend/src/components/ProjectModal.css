@@ -1,0 +1,231 @@
+.project-modal-container {
+  max-width: 480px;
+}
+
+.project-modal-container .modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: var(--color-text, #1a1a1a);
+}
+
+.project-modal-subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary, #666);
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.project-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.project-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-form .form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text, #1a1a1a);
+}
+
+.project-form .form-input,
+.project-form .form-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 15px;
+  border: 1px solid var(--color-border, #ddd);
+  border-radius: 8px;
+  background: var(--color-input-bg, white);
+  color: var(--color-text, #1a1a1a);
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.project-form .form-input:focus,
+.project-form .form-textarea:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.project-form .form-input:disabled,
+.project-form .form-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.project-form .form-textarea {
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.5;
+}
+
+.project-form .form-hint {
+  font-size: 13px;
+  color: var(--color-text-secondary, #666);
+  text-align: right;
+  margin-top: 2px;
+  margin-bottom: 0;
+}
+
+.form-optional {
+  font-weight: 400;
+  color: var(--color-text-secondary, #999);
+  font-size: 13px;
+}
+
+.project-error {
+  padding: 10px 14px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.project-modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border, #e5e5e5);
+}
+
+.project-modal-actions .btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+
+.project-modal-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.project-modal-actions .btn-primary {
+  background: var(--color-primary, #2563eb);
+  color: white;
+  min-width: 120px;
+}
+
+.project-modal-actions .btn-primary:hover:not(:disabled) {
+  background: var(--color-primary-hover, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.project-modal-actions .btn-secondary {
+  background: var(--color-surface-secondary, #f5f5f5);
+  color: var(--color-text, #1a1a1a);
+  min-width: 100px;
+  border: 1px solid var(--color-border, #ddd);
+}
+
+.project-modal-actions .btn-secondary:hover:not(:disabled) {
+  background: var(--color-surface-hover, #e5e5e5);
+}
+
+[data-theme='dark'] .project-modal-actions .btn-primary {
+  background: #2563eb;
+  color: white;
+}
+
+[data-theme='dark'] .project-modal-actions .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.project-modal-actions .spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dark mode support */
+[data-theme='dark'] .project-modal-title {
+  color: #f5f5f5;
+}
+
+[data-theme='dark'] .project-modal-subtitle {
+  color: #a0a0a0;
+}
+
+[data-theme='dark'] .project-error {
+  background: rgba(255, 100, 100, 0.1);
+  border-color: rgba(255, 100, 100, 0.3);
+  color: #ff6b6b;
+}
+
+[data-theme='dark'] .project-form .form-label {
+  color: #f5f5f5;
+}
+
+[data-theme='dark'] .project-form .form-input,
+[data-theme='dark'] .project-form .form-textarea {
+  background: #2a2a2a;
+  border-color: #404040;
+  color: #f5f5f5;
+}
+
+[data-theme='dark'] .project-form .form-hint {
+  color: #a0a0a0;
+}
+
+[data-theme='dark'] .project-modal-actions .btn-secondary {
+  background: #2a2a2a;
+  color: #f5f5f5;
+}
+
+[data-theme='dark'] .project-modal-actions .btn-secondary:hover:not(:disabled) {
+  background: #3a3a3a;
+}
+
+[data-theme='dark'] .project-modal-actions {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .project-modal-title {
+    font-size: 20px;
+  }
+
+  .project-modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .project-modal-actions .btn {
+    width: 100%;
+  }
+}
+

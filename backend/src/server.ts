@@ -6,6 +6,7 @@ import modelsRouter from './routes/models';
 import authRouter from './routes/auth';
 import apiKeysRouter from './routes/apiKeys';
 import conversationsRouter from './routes/conversations';
+import projectsRouter from './routes/projects';
 import billingRouter from './routes/billing';
 import supportRouter from './routes/support';
 import workflowsRouter from './routes/workflows';
@@ -35,6 +36,7 @@ app.use('/api/models', modelsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/user/keys', apiKeysRouter);
 app.use('/api/conversations', conversationsRouter);
+app.use('/api/projects', projectsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/workflows', workflowsRouter);
@@ -49,12 +51,75 @@ function parseProvider(value: string | undefined): ApiProvider | null {
 app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { message, messages, provider, model, fileIds } = req.body as any;
+    const { message, messages, provider, model, fileIds, conversationId } = req.body as any;
 
     if (!message && (!messages || messages.length === 0)) {
       return res.status(400).json({ error: 'Message is required' });
     }
-    const history = (messages && messages.length > 0) ? messages : [{ role: 'user', content: message }];
+    let history = (messages && messages.length > 0) ? messages : [{ role: 'user', content: message }];
+
+    // If conversationId is provided, check if it belongs to a project and load context
+    if (conversationId) {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: conversationId, userId },
+        select: { projectId: true },
+      });
+
+      if (conversation?.projectId) {
+        // Load messages from all other conversations in the same project
+        const projectConversations = await prisma.conversation.findMany({
+          where: {
+            projectId: conversation.projectId,
+            userId,
+            id: { not: conversationId }, // Exclude current conversation
+          },
+          select: {
+            id: true,
+            title: true,
+            createdAt: true,
+            messages: {
+              select: {
+                role: true,
+                content: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+          orderBy: { createdAt: 'asc' }, // Older conversations first
+        });
+
+        // Build context from project conversations
+        const projectContext: Array<{ role: string; content: string }> = [];
+        
+        for (const conv of projectConversations) {
+          if (conv.messages.length > 0) {
+            // Add a system message to separate conversations
+            projectContext.push({
+              role: 'system',
+              content: `--- Context from conversation "${conv.title}" ---`,
+            });
+            
+            // Add messages from this conversation
+            for (const msg of conv.messages) {
+              projectContext.push({
+                role: msg.role.toLowerCase(),
+                content: msg.content,
+              });
+            }
+          }
+        }
+
+        // Prepend project context to the current conversation history
+        if (projectContext.length > 0) {
+          projectContext.unshift({
+            role: 'system',
+            content: 'The following is context from other conversations in the same project. Use this context to provide better, more informed responses.',
+          });
+          history = [...projectContext, ...history];
+        }
+      }
+    }
 
     // Process file IDs if provided
     const files: Array<{ buffer: Buffer; filename: string; mimeType: string }> = [];

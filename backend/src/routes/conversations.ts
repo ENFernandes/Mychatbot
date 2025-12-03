@@ -10,12 +10,24 @@ router.use(enforceActiveSubscription);
 
 router.get('/', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
+  const { projectId } = req.query as { projectId?: string };
+
+  const whereClause: { userId: string; projectId?: string | null } = { userId };
+  
+  // Filter by projectId if provided
+  if (projectId === 'null' || projectId === '') {
+    whereClause.projectId = null;
+  } else if (projectId) {
+    whereClause.projectId = projectId;
+  }
+
   const conversations = await prisma.conversation.findMany({
-    where: { userId },
+    where: whereClause,
     select: {
       id: true,
       title: true,
       pinned: true,
+      projectId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -27,6 +39,7 @@ router.get('/', async (req: Request, res: Response) => {
       id: conv.id,
       title: conv.title,
       pinned: conv.pinned,
+      project_id: conv.projectId,
       created_at: conv.createdAt,
       updated_at: conv.updatedAt,
     })),
@@ -35,16 +48,29 @@ router.get('/', async (req: Request, res: Response) => {
 
 router.post('/', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
-  const { title } = req.body as { title?: string };
+  const { title, projectId } = req.body as { title?: string; projectId?: string };
+
+  // If projectId is provided, verify it belongs to the user
+  if (projectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId },
+      select: { id: true },
+    });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+  }
 
   const conversation = await prisma.conversation.create({
     data: {
       userId,
       title: title?.trim() || 'New conversation',
+      projectId: projectId || null,
     },
     select: {
       id: true,
       title: true,
+      projectId: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -53,6 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
   res.json({
     id: conversation.id,
     title: conversation.title,
+    project_id: conversation.projectId,
     created_at: conversation.createdAt,
     updated_at: conversation.updatedAt,
   });
@@ -61,9 +88,9 @@ router.post('/', async (req: Request, res: Response) => {
 router.patch('/:id', async (req: Request, res: Response) => {
   const userId = (req as any).userId as string;
   const { id } = req.params;
-  const { title, pinned } = req.body as { title?: string; pinned?: boolean };
+  const { title, pinned, projectId } = req.body as { title?: string; pinned?: boolean; projectId?: string | null };
 
-  const data: { title?: string; pinned?: boolean } = {};
+  const data: { title?: string; pinned?: boolean; projectId?: string | null } = {};
   
   if (title !== undefined) {
     data.title = title?.trim() || 'New conversation';
@@ -71,6 +98,23 @@ router.patch('/:id', async (req: Request, res: Response) => {
   
   if (pinned !== undefined) {
     data.pinned = pinned;
+  }
+
+  // Handle projectId update (can be set to null to remove from project)
+  if (projectId !== undefined) {
+    if (projectId === null || projectId === '') {
+      data.projectId = null;
+    } else {
+      // Verify project belongs to user
+      const project = await prisma.project.findFirst({
+        where: { id: projectId, userId },
+        select: { id: true },
+      });
+      if (!project) {
+        return res.status(404).json({ error: 'Project not found' });
+      }
+      data.projectId = projectId;
+    }
   }
 
   await prisma.conversation.updateMany({

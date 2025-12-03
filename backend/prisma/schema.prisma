@@ -63,6 +63,7 @@ model User {
 
   apiKeys         UserApiKey[]
   conversations   Conversation[]
+  projects        Project[]
   subscription    UserSubscription?
   stripeCustomer  StripeCustomer?
   supportRequests SupportRequest[]
@@ -104,17 +105,35 @@ model UserApiKey {
   @@map("user_api_keys")
 }
 
+model Project {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  name        String
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
 model Conversation {
   id        String    @id @default(uuid())
   userId    String    @map("user_id")
+  projectId String?   @map("project_id")
   title     String    @default("New conversation")
   pinned    Boolean   @default(false)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   messages Message[]
 
+  @@index([projectId])
   @@map("conversations")
 }
 

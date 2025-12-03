@@ -19,9 +19,10 @@ interface ChatProps {
   workflowId?: string | null;
   isAgentMode?: boolean;
   selectedWorkflowId?: string | null;
+  activeProjectId?: string | null;
 }
 
-const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange, workflowId, isAgentMode = false, selectedWorkflowId }) => {
+const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange, workflowId, isAgentMode = false, selectedWorkflowId, activeProjectId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -173,7 +174,11 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
 
     try {
       if (!convId) {
-        const { data } = await api.post('/conversations', {});
+        const payload: { projectId?: string } = {};
+        if (activeProjectId) {
+          payload.projectId = activeProjectId;
+        }
+        const { data } = await api.post('/conversations', payload);
         convId = data.id;
         createdConversationId = convId;
         onConversationChange(convId);
@@ -202,6 +207,11 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
             content: msg.content,
           })),
         };
+
+        // Add conversationId for project context
+        if (convId) {
+          chatPayload.conversationId = convId;
+        }
 
         // Add file IDs if present
         if (fileIds.length > 0) {
