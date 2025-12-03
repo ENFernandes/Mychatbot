@@ -1,7 +1,10 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
+// Prisma client instance with all models including UserWorkflow
 export const prisma = new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  log: (process.env.NODE_ENV === 'development' 
+    ? ['query', 'error', 'warn'] 
+    : ['error']) as Prisma.LogLevel[],
 });
 
 let isConnected = false;

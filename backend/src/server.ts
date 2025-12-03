@@ -9,10 +9,12 @@ import conversationsRouter from './routes/conversations';
 import billingRouter from './routes/billing';
 import supportRouter from './routes/support';
 import workflowsRouter from './routes/workflows';
+import filesRouter from './routes/files';
 import { stripeWebhookHandler } from './routes/stripeWebhook';
-import { openaiChat } from './providers/openaiClient';
-import { geminiChat } from './providers/geminiClient';
-import { claudeChat } from './providers/claudeClient';
+import { openaiChat, FileContent as OpenAIFileContent } from './providers/openaiClient';
+import { geminiChat, FileContent as GeminiFileContent } from './providers/geminiClient';
+import { claudeChat, FileContent as ClaudeFileContent } from './providers/claudeClient';
+import { getStoredFile, removeStoredFile, isFileSupportedByProvider } from './services/fileService';
 import { connectDatabase, disconnectDatabase, prisma, checkDatabaseConnection } from './config/database';
 import { decrypt, toBuffer } from './services/encryptionService';
 import { requireAuth } from './middleware/auth';
@@ -36,6 +38,7 @@ app.use('/api/conversations', conversationsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/workflows', workflowsRouter);
+app.use('/api/files', filesRouter);
 
 function parseProvider(value: string | undefined): ApiProvider | null {
   if (!value) return null;
@@ -46,12 +49,28 @@ function parseProvider(value: string | undefined): ApiProvider | null {
 app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { message, messages, provider, model } = req.body as any;
+    const { message, messages, provider, model, fileIds } = req.body as any;
 
     if (!message && (!messages || messages.length === 0)) {
       return res.status(400).json({ error: 'Message is required' });
     }
     const history = (messages && messages.length > 0) ? messages : [{ role: 'user', content: message }];
+
+    // Process file IDs if provided
+    const files: Array<{ buffer: Buffer; filename: string; mimeType: string }> = [];
+    if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+      for (const fileId of fileIds) {
+        const storedFile = getStoredFile(fileId);
+        if (!storedFile) {
+          return res.status(400).json({ error: `File not found: ${fileId}` });
+        }
+        files.push({
+          buffer: storedFile.buffer,
+          filename: storedFile.filename,
+          mimeType: storedFile.mimeType,
+        });
+      }
+    }
 
     // Convert provider string to ApiProvider enum
     const providerEnum = parseProvider(provider);
@@ -105,18 +124,63 @@ app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Reques
       });
     }
 
+    // Validate files are supported by the provider
+    if (files.length > 0) {
+      const providerName = providerEnum.toLowerCase() as 'openai' | 'gemini' | 'claude';
+      for (const file of files) {
+        if (!isFileSupportedByProvider(file.mimeType, providerName)) {
+          return res.status(400).json({
+            error: `File type ${file.mimeType} is not supported by ${provider}`,
+          });
+        }
+      }
+    }
+
     if (providerEnum === ApiProvider.OPENAI) {
-      const result = await openaiChat({ apiKey: decryptedKey, model: model || 'gpt-5', messages: history });
+      const result = await openaiChat({
+        apiKey: decryptedKey,
+        model: model || 'gpt-5',
+        messages: history,
+        files: files.length > 0 ? files : undefined,
+      });
+      // Clean up stored files after successful processing
+      if (fileIds) {
+        for (const fileId of fileIds) {
+          removeStoredFile(fileId);
+        }
+      }
       return res.json(result);
     }
 
     if (providerEnum === ApiProvider.GEMINI) {
-      const result = await geminiChat({ apiKey: decryptedKey, model: model || 'gemini-2.5-flash', messages: history });
+      const result = await geminiChat({
+        apiKey: decryptedKey,
+        model: model || 'gemini-2.5-flash',
+        messages: history,
+        files: files.length > 0 ? files : undefined,
+      });
+      // Clean up stored files after successful processing
+      if (fileIds) {
+        for (const fileId of fileIds) {
+          removeStoredFile(fileId);
+        }
+      }
       return res.json(result);
     }
 
     if (providerEnum === ApiProvider.CLAUDE) {
-      const result = await claudeChat({ apiKey: decryptedKey, model: model || 'claude-3-5-sonnet-latest', messages: history });
+      const result = await claudeChat({
+        apiKey: decryptedKey,
+        model: model || 'claude-3-5-sonnet-latest',
+        messages: history,
+        files: files.length > 0 ? files : undefined,
+      });
+      // Clean up stored files after successful processing
+      if (fileIds) {
+        for (const fileId of fileIds) {
+          removeStoredFile(fileId);
+        }
+      }
       return res.json(result);
     }
 

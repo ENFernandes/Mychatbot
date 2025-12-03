@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, uploadFile } from '../services/api';
+import FileUpload, { UploadedFile } from './FileUpload';
 import './Chat.css';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   provider?: 'openai' | 'gemini' | 'claude' | 'agent';
+  fileIds?: string[];
+  filenames?: string[];
 }
 
 interface ChatProps {
@@ -23,6 +26,8 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<UploadedFile[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -65,21 +70,101 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     }
   }, [inputMessage]);
 
+  // Clear attached files when provider changes
+  useEffect(() => {
+    setAttachedFiles([]);
+  }, [provider]);
+
+  const uploadAllFiles = async (): Promise<string[]> => {
+    const pendingFiles = attachedFiles.filter((f) => f.status === 'pending');
+    if (pendingFiles.length === 0) {
+      // Return IDs of already uploaded files
+      return attachedFiles
+        .filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-'))
+        .map((f) => f.id);
+    }
+
+    setIsUploading(true);
+    const uploadedIds: string[] = [];
+
+    // Update all pending files to uploading status
+    setAttachedFiles((prev) =>
+      prev.map((f) => (f.status === 'pending' ? { ...f, status: 'uploading' as const } : f))
+    );
+
+    for (const fileItem of pendingFiles) {
+      try {
+        const response = await uploadFile(fileItem.file);
+        uploadedIds.push(response.id);
+
+        // Update file status to uploaded with the server ID
+        setAttachedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileItem.id
+              ? { ...f, id: response.id, status: 'uploaded' as const }
+              : f
+          )
+        );
+      } catch (err: any) {
+        console.error('Error uploading file:', err);
+        // Update file status to error
+        setAttachedFiles((prev) =>
+          prev.map((f) =>
+            f.id === fileItem.id
+              ? { ...f, status: 'error' as const, error: err.message || 'Upload failed' }
+              : f
+          )
+        );
+      }
+    }
+
+    setIsUploading(false);
+
+    // Get all successfully uploaded file IDs
+    return [
+      ...uploadedIds,
+      ...attachedFiles
+        .filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-'))
+        .map((f) => f.id),
+    ];
+  };
+
   const sendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) {
+    if ((!inputMessage.trim() && attachedFiles.length === 0) || isLoading || isUploading) {
       return;
     }
 
     const previousMessages = messages;
     const trimmedInput = inputMessage.trim();
+
+    // Upload files first
+    let fileIds: string[] = [];
+    const filenames: string[] = attachedFiles.map((f) => f.filename);
+
+    if (attachedFiles.length > 0) {
+      try {
+        fileIds = await uploadAllFiles();
+        if (fileIds.length === 0 && attachedFiles.some((f) => f.status === 'error')) {
+          setError('Failed to upload some files. Please try again.');
+          return;
+        }
+      } catch (err) {
+        setError('Failed to upload files. Please try again.');
+        return;
+      }
+    }
+
     const userMessage: Message = {
       role: 'user',
-      content: trimmedInput,
+      content: trimmedInput || (filenames.length > 0 ? `[Attached files: ${filenames.join(', ')}]` : ''),
+      fileIds: fileIds.length > 0 ? fileIds : undefined,
+      filenames: filenames.length > 0 ? filenames : undefined,
     };
 
     const optimisticMessages = [...previousMessages, userMessage];
     setMessages(optimisticMessages);
     setInputMessage('');
+    setAttachedFiles([]); // Clear attached files after sending
     setError(null);
     setIsLoading(true);
 
@@ -117,6 +202,11 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
             content: msg.content,
           })),
         };
+
+        // Add file IDs if present
+        if (fileIds.length > 0) {
+          chatPayload.fileIds = fileIds;
+        }
 
         // If workflowId is provided, add it to the payload
         if (workflowId) {
@@ -273,6 +363,19 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     );
   };
 
+  const renderFileAttachments = (filenames?: string[]) => {
+    if (!filenames || filenames.length === 0) return null;
+    return (
+      <div className="message-files">
+        {filenames.map((filename, idx) => (
+          <span key={idx} className="message-file-tag">
+            📎 {filename}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="chat-container">
       <div className="chat-messages">
@@ -297,6 +400,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
                 {msg.role === 'user' ? '👤' : getProviderIcon(msg.provider || provider)}
               </div>
               <div className="message-content">
+                {msg.role === 'user' && renderFileAttachments(msg.filenames)}
                 <div className="message-bubble">
                   {msg.role === 'assistant'
                     ? msg.content
@@ -334,35 +438,50 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
 
       <div className="chat-input-container">
         <div className="chat-input-wrapper">
+          <FileUpload
+            files={attachedFiles}
+            onFilesChange={setAttachedFiles}
+            disabled={isLoading || isUploading}
+            provider={provider}
+          />
           <textarea
             ref={textareaRef}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Type your message..."
-            disabled={isLoading}
+            placeholder={attachedFiles.length > 0 ? "Add a message or send files..." : "Type your message..."}
+            disabled={isLoading || isUploading}
             className="chat-input"
             rows={1}
           />
           <button
             onClick={sendMessage}
-            disabled={isLoading || !inputMessage.trim()}
+            disabled={isLoading || isUploading || (!inputMessage.trim() && attachedFiles.length === 0)}
             className="chat-send-button"
             aria-label="Send message"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {isUploading ? (
+              <div className="send-spinner"></div>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path
+                  d="M18 2L9 11M18 2L12 18L9 11M18 2L2 8L9 11"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
           </button>
         </div>
         <div className="chat-footer">
           <span className="chat-shortcut">Press Enter to send, Shift+Enter for new line</span>
+          {attachedFiles.length > 0 && (
+            <span className="chat-file-count">
+              {attachedFiles.length} file{attachedFiles.length > 1 ? 's' : ''} attached
+            </span>
+          )}
         </div>
       </div>
     </div>

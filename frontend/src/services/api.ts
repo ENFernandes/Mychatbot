@@ -70,4 +70,66 @@ export async function refreshToken(currentToken: string) {
   }
 }
 
+// File upload types
+export interface FileUploadResponse {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  uploadedAt: string;
+}
+
+export interface MultipleFileUploadResponse {
+  files: FileUploadResponse[];
+}
+
+/**
+ * Upload a single file to the backend
+ */
+export async function uploadFile(file: File): Promise<FileUploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const { data } = await api.post<FileUploadResponse>('/files/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return data;
+}
+
+/**
+ * Upload multiple files to the backend
+ */
+export async function uploadMultipleFiles(files: File[]): Promise<FileUploadResponse[]> {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append('files', file);
+  });
+
+  const { data } = await api.post<MultipleFileUploadResponse>('/files/upload-multiple', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+
+  return data.files;
+}
+
+/**
+ * Get file metadata
+ */
+export async function getFileMetadata(fileId: string): Promise<FileUploadResponse> {
+  const { data } = await api.get<FileUploadResponse>(`/files/${fileId}`);
+  return data;
+}
+
+/**
+ * Delete a file
+ */
+export async function deleteFile(fileId: string): Promise<void> {
+  await api.delete(`/files/${fileId}`);
+}
+
 
