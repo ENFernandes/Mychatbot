@@ -21,6 +21,13 @@ import UpdatePlan from './pages/UpdatePlan';
 import './App.css';
 import BrandIcon from '@frontend/icon/icon.png';
 
+interface Workflow {
+  id: string;
+  name: string;
+  model: string;
+  isDefault: boolean;
+}
+
 const AppShell: React.FC = () => {
   const { token, plan, trialEndsAt, isBillingLocked, logout } = useAuth();
   const [view, setView] = useState<'chat' | 'settings' | 'update-plan'>('chat');
@@ -33,7 +40,20 @@ const AppShell: React.FC = () => {
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
   const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [isAgentMode, setIsAgentMode] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
   const handleOpenUpdatePlan = useCallback(() => setView('update-plan'), []);
+  
+  const handleAgentModeToggle = useCallback(() => {
+    setIsAgentMode(prev => !prev);
+  }, []);
+
+  const handleWorkflowChange = useCallback((workflowId: string | null) => {
+    setSelectedWorkflowId(workflowId);
+  }, []);
+
+  const hasOpenAIKey = availableProviders.includes('openai');
 
   const handleCheckout = useCallback(async () => {
     try {
@@ -125,7 +145,7 @@ const AppShell: React.FC = () => {
     fetchAvailableProviders();
   }, [token]);
 
-  // Reload providers when returning to chat (after possible change in Settings)
+  // Reload providers and workflows when returning to chat (after possible change in Settings)
   useEffect(() => {
     if (token && view === 'chat') {
       const fetchAvailableProviders = async () => {
@@ -145,7 +165,28 @@ const AppShell: React.FC = () => {
           setAvailableProviders([]);
         }
       };
+      
+      const fetchWorkflows = async () => {
+        try {
+          const { data } = await api.get('/workflows');
+          const wfs = data.workflows || [];
+          setWorkflows(wfs);
+          
+          // Auto-select default workflow if none selected
+          if (!selectedWorkflowId && wfs.length > 0) {
+            const defaultWf = wfs.find((w: Workflow) => w.isDefault);
+            if (defaultWf) {
+              setSelectedWorkflowId(defaultWf.id);
+            }
+          }
+        } catch (e) {
+          console.error('Error fetching workflows:', e);
+          setWorkflows([]);
+        }
+      };
+      
       fetchAvailableProviders();
+      fetchWorkflows();
     }
   }, [view, token]);
 
@@ -392,11 +433,17 @@ const AppShell: React.FC = () => {
                     provider={provider} 
                     onChange={(p) => setProvider(p)}
                     availableProviders={availableProviders}
+                    isAgentMode={isAgentMode}
+                    onAgentModeToggle={handleAgentModeToggle}
+                    hasOpenAIKey={hasOpenAIKey}
+                    workflows={workflows}
+                    selectedWorkflowId={selectedWorkflowId}
+                    onWorkflowChange={handleWorkflowChange}
                   />
                 </div>
               )}
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} />
+                <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} isAgentMode={isAgentMode} selectedWorkflowId={selectedWorkflowId} />
               </div>
             </div>
           </div>

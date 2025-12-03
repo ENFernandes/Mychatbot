@@ -66,8 +66,27 @@ model User {
   subscription    UserSubscription?
   stripeCustomer  StripeCustomer?
   supportRequests SupportRequest[]
+  workflows       UserWorkflow[]
 
   @@map("users")
+}
+
+model UserWorkflow {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  name                String
+  encryptedWorkflowId Bytes    @map("encrypted_workflow_id")
+  iv                  Bytes
+  model               String   @default("gpt-4o")
+  instructions        String?  @db.Text
+  isDefault           Boolean  @default(false) @map("is_default")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_workflows")
 }
 
 model UserApiKey {

@@ -5,7 +5,7 @@ import './Chat.css';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  provider?: 'openai' | 'gemini' | 'claude';
+  provider?: 'openai' | 'gemini' | 'claude' | 'agent';
 }
 
 interface ChatProps {
@@ -13,9 +13,12 @@ interface ChatProps {
   model: string;
   conversationId: string | null;
   onConversationChange: (id: string | null) => void;
+  workflowId?: string | null;
+  isAgentMode?: boolean;
+  selectedWorkflowId?: string | null;
 }
 
-const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange }) => {
+const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange, workflowId, isAgentMode = false, selectedWorkflowId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,11 +27,12 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Provider icons mapping
-  const getProviderIcon = (provider?: 'openai' | 'gemini' | 'claude'): string => {
+  const getProviderIcon = (provider?: 'openai' | 'gemini' | 'claude' | 'agent'): string => {
     const icons: Record<string, string> = {
       openai: '🤖',
       gemini: '✨',
       claude: '🧠',
+      agent: '🚀',
     };
     return provider ? (icons[provider] || '🤖') : '🤖';
   };
@@ -96,19 +100,36 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         content: userMessage.content,
       });
 
-      const response = await api.post('/chat', {
-        provider,
-        model,
-        messages: optimisticMessages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        })),
-      });
+      let response;
+      
+      if (isAgentMode) {
+        // Use the Agent workflow endpoint
+        response = await api.post('/workflows/run', {
+          message: userMessage.content,
+          workflowId: selectedWorkflowId || undefined,
+        });
+      } else {
+        const chatPayload: any = {
+          provider,
+          model,
+          messages: optimisticMessages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        };
+
+        // If workflowId is provided, add it to the payload
+        if (workflowId) {
+          chatPayload.workflowId = workflowId;
+        }
+
+        response = await api.post('/chat', chatPayload);
+      }
 
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.data.message,
-        provider: provider,
+        provider: isAgentMode ? 'agent' : provider,
       };
 
       const fullConversation = [...optimisticMessages, assistantMessage];
@@ -118,7 +139,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         await api.post(`/conversations/${convId}/messages`, {
           role: 'assistant',
           content: assistantMessage.content,
-          provider: provider,
+          provider: isAgentMode ? 'agent' : provider,
         });
       } catch (persistError) {
         console.error('Error saving assistant message:', persistError);
@@ -257,10 +278,13 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       <div className="chat-messages">
         {messages.length === 0 ? (
           <div className="chat-empty">
-            <div className="empty-icon">💬</div>
-            <h2 className="empty-title">Start a conversation</h2>
+            <div className="empty-icon">{isAgentMode ? '🚀' : '💬'}</div>
+            <h2 className="empty-title">{isAgentMode ? 'Agent Mode Active' : 'Start a conversation'}</h2>
             <p className="empty-description">
-              Send a message to begin chatting with {model}
+              {isAgentMode 
+                ? 'Send a message to interact with the AI Agent (powered by OpenAI Agents SDK)'
+                : `Send a message to begin chatting with ${model}`
+              }
             </p>
           </div>
         ) : (
@@ -286,7 +310,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         )}
         {isLoading && (
           <div className="message-wrapper message-assistant">
-            <div className="message-avatar">{getProviderIcon(provider)}</div>
+            <div className="message-avatar">{getProviderIcon(isAgentMode ? 'agent' : provider)}</div>
             <div className="message-content">
               <div className="message-bubble message-typing">
                 <div className="typing-indicator">

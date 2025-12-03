@@ -9,9 +9,31 @@ interface ApiKey {
   createdAt?: string;
 }
 
+interface Workflow {
+  id: string;
+  name: string;
+  model: string;
+  instructions?: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
 interface SettingsProps {
   onBackToChat?: () => void;
 }
+
+// Available models for the Agent workflow
+const AVAILABLE_MODELS = [
+  'gpt-4o',
+  'gpt-4o-mini',
+  'gpt-4-turbo',
+  'gpt-4',
+  'gpt-3.5-turbo',
+  'o1',
+  'o1-mini',
+  'o1-preview',
+  'gpt-5.1-codex',
+];
 
 const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
   const { plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, token } = useAuth();
@@ -26,9 +48,25 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     provider: string | null;
   }>({ isOpen: false, provider: null });
 
+  // Workflow states
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [workflowName, setWorkflowName] = useState('');
+  const [workflowId, setWorkflowId] = useState('');
+  const [workflowModel, setWorkflowModel] = useState('gpt-4o');
+  const [workflowInstructions, setWorkflowInstructions] = useState('');
+  const [workflowIsDefault, setWorkflowIsDefault] = useState(false);
+  const [workflowLoading, setWorkflowLoading] = useState(false);
+  const [editingWorkflow, setEditingWorkflow] = useState<string | null>(null);
+  const [workflowConfirmModal, setWorkflowConfirmModal] = useState<{
+    isOpen: boolean;
+    workflowId: string | null;
+    workflowName: string | null;
+  }>({ isOpen: false, workflowId: null, workflowName: null });
+
   useEffect(() => {
     if (token) {
       loadActiveKeys();
+      loadWorkflows();
     }
   }, [refreshTrigger, token]);
 
@@ -42,10 +80,19 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
       setActiveKeys(data.keys || []);
     } catch (e: any) {
       console.error('Error loading keys:', e);
-      // If 401, token might be expired - don't show error to user
       if (e?.response?.status === 401) {
         console.warn('Unauthorized - token may be expired');
       }
+    }
+  };
+
+  const loadWorkflows = async () => {
+    if (!token) return;
+    try {
+      const { data } = await api.get('/workflows');
+      setWorkflows(data.workflows || []);
+    } catch (e: any) {
+      console.error('Error loading workflows:', e);
     }
   };
 
@@ -85,6 +132,91 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
 
   const handleCancelRemove = () => {
     setConfirmModal({ isOpen: false, provider: null });
+  };
+
+  // Workflow handlers
+  const addWorkflow = async () => {
+    if (!workflowName.trim() || !workflowId.trim()) return;
+    
+    setWorkflowLoading(true);
+    try {
+      if (editingWorkflow) {
+        await api.put(`/workflows/${editingWorkflow}`, {
+          name: workflowName.trim(),
+          workflowId: workflowId.trim(),
+          model: workflowModel,
+          instructions: workflowInstructions.trim() || null,
+          isDefault: workflowIsDefault,
+        });
+      } else {
+        await api.post('/workflows', {
+          name: workflowName.trim(),
+          workflowId: workflowId.trim(),
+          model: workflowModel,
+          instructions: workflowInstructions.trim() || null,
+          isDefault: workflowIsDefault,
+        });
+      }
+      resetWorkflowForm();
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      alert('Error saving workflow');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const editWorkflow = (workflow: Workflow) => {
+    setEditingWorkflow(workflow.id);
+    setWorkflowName(workflow.name);
+    setWorkflowId(''); // Cannot retrieve encrypted ID
+    setWorkflowModel(workflow.model);
+    setWorkflowInstructions(workflow.instructions || '');
+    setWorkflowIsDefault(workflow.isDefault);
+  };
+
+  const resetWorkflowForm = () => {
+    setEditingWorkflow(null);
+    setWorkflowName('');
+    setWorkflowId('');
+    setWorkflowModel('gpt-4o');
+    setWorkflowInstructions('');
+    setWorkflowIsDefault(false);
+  };
+
+  const removeWorkflow = async (id: string, name: string) => {
+    setWorkflowConfirmModal({ isOpen: true, workflowId: id, workflowName: name });
+  };
+
+  const handleConfirmWorkflowRemove = async () => {
+    if (!workflowConfirmModal.workflowId) return;
+    
+    setWorkflowLoading(true);
+    setWorkflowConfirmModal({ isOpen: false, workflowId: null, workflowName: null });
+    try {
+      await api.delete(`/workflows/${workflowConfirmModal.workflowId}`);
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      alert('Error deleting workflow');
+    } finally {
+      setWorkflowLoading(false);
+    }
+  };
+
+  const handleCancelWorkflowRemove = () => {
+    setWorkflowConfirmModal({ isOpen: false, workflowId: null, workflowName: null });
+  };
+
+  const setDefaultWorkflow = async (id: string) => {
+    setWorkflowLoading(true);
+    try {
+      await api.put(`/workflows/${id}`, { isDefault: true });
+      setRefreshTrigger(prev => prev + 1);
+    } catch (e) {
+      alert('Error setting default workflow');
+    } finally {
+      setWorkflowLoading(false);
+    }
   };
 
   const getProviderLabel = (provider: string) => {
@@ -133,6 +265,7 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     }
   };
 
+  const hasOpenAIKey = activeKeys.some(k => k.provider === 'openai');
 
   return (
     <div className="settings-container">
@@ -302,6 +435,201 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
             </div>
           )}
         </div>
+
+        {/* Agent Workflows Card */}
+        <div className="settings-card workflows-card">
+          <div className="card-header">
+            <h2 className="card-title">🚀 Agent Workflows</h2>
+            <p className="card-description">
+              {!hasOpenAIKey 
+                ? 'Add an OpenAI API key to use Agent workflows'
+                : 'Configure your OpenAI Agent workflows for advanced AI interactions'
+              }
+            </p>
+          </div>
+
+          {hasOpenAIKey && (
+            <>
+              <div className="form-group">
+                <label htmlFor="workflow-name" className="form-label">Workflow Name</label>
+                <input
+                  id="workflow-name"
+                  type="text"
+                  value={workflowName}
+                  onChange={(e) => setWorkflowName(e.target.value)}
+                  placeholder="e.g., Project Manager Agent"
+                  disabled={workflowLoading}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="workflow-id" className="form-label">
+                  Workflow ID {editingWorkflow && <span style={{ color: 'var(--color-text-muted)', fontWeight: 'normal' }}>(leave empty to keep current)</span>}
+                </label>
+                <input
+                  id="workflow-id"
+                  type="password"
+                  value={workflowId}
+                  onChange={(e) => setWorkflowId(e.target.value)}
+                  placeholder="wf_xxxxxxxxxxxxxxxxxxxx"
+                  disabled={workflowLoading}
+                  className="form-input"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="workflow-model" className="form-label">Model</label>
+                <select
+                  id="workflow-model"
+                  value={workflowModel}
+                  onChange={(e) => setWorkflowModel(e.target.value)}
+                  disabled={workflowLoading}
+                  className="form-select"
+                >
+                  {AVAILABLE_MODELS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="workflow-instructions" className="form-label">Instructions (optional)</label>
+                <textarea
+                  id="workflow-instructions"
+                  value={workflowInstructions}
+                  onChange={(e) => setWorkflowInstructions(e.target.value)}
+                  placeholder="You are a helpful AI assistant..."
+                  disabled={workflowLoading}
+                  className="form-input"
+                  rows={3}
+                  style={{ resize: 'vertical', minHeight: '80px' }}
+                />
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  id="workflow-default"
+                  type="checkbox"
+                  checked={workflowIsDefault}
+                  onChange={(e) => setWorkflowIsDefault(e.target.checked)}
+                  disabled={workflowLoading}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <label htmlFor="workflow-default" className="form-label" style={{ marginBottom: 0, cursor: 'pointer' }}>
+                  Set as default workflow
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={addWorkflow}
+                  disabled={workflowLoading || !workflowName.trim() || (!workflowId.trim() && !editingWorkflow)}
+                  className="btn btn-primary"
+                  style={{ flex: 1 }}
+                >
+                  {workflowLoading ? (
+                    <>
+                      <span className="spinner"></span>
+                      {editingWorkflow ? 'Updating...' : 'Adding...'}
+                    </>
+                  ) : (
+                    <>
+                      <span>{editingWorkflow ? '✓' : '+'}</span>
+                      {editingWorkflow ? 'Update Workflow' : 'Add Workflow'}
+                    </>
+                  )}
+                </button>
+                {editingWorkflow && (
+                  <button
+                    onClick={resetWorkflowForm}
+                    className="btn btn-secondary"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Active Workflows Card */}
+        {hasOpenAIKey && (
+          <div className="settings-card active-clients-card">
+            <div className="card-header">
+              <h2 className="card-title">Active Workflows</h2>
+              <p className="card-description">
+                {workflows.length === 0 
+                  ? 'No workflows configured. Add one above to get started.'
+                  : `${workflows.length} workflow${workflows.length > 1 ? 's' : ''} configured`
+                }
+              </p>
+            </div>
+            
+            {workflows.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">🚀</div>
+                <p className="empty-text">No workflows yet</p>
+                <p className="empty-subtext">Add your first Agent workflow to enhance your AI experience</p>
+              </div>
+            ) : (
+              <div className="keys-list">
+                {workflows.map((workflow) => (
+                  <div key={workflow.id} className="key-item" style={{ flexWrap: 'wrap' }}>
+                    <div className="key-info" style={{ flex: 1, minWidth: '200px' }}>
+                      <div className="key-icon">🚀</div>
+                      <div className="key-details">
+                        <span className="key-provider" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {workflow.name}
+                          {workflow.isDefault && (
+                            <span style={{ 
+                              fontSize: '10px', 
+                              background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', 
+                              color: 'white', 
+                              padding: '2px 8px', 
+                              borderRadius: '12px',
+                              fontWeight: 600 
+                            }}>
+                              DEFAULT
+                            </span>
+                          )}
+                        </span>
+                        <span className="key-date">
+                          Model: {workflow.model} • Added {new Date(workflow.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {!workflow.isDefault && (
+                        <button
+                          onClick={() => setDefaultWorkflow(workflow.id)}
+                          disabled={workflowLoading}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          Set Default
+                        </button>
+                      )}
+                      <button
+                        onClick={() => editWorkflow(workflow)}
+                        disabled={workflowLoading}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => removeWorkflow(workflow.id, workflow.name)}
+                        disabled={workflowLoading}
+                        className="btn btn-danger btn-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmModal
@@ -312,6 +640,17 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
         cancelText="Cancel"
         onConfirm={handleConfirmRemove}
         onCancel={handleCancelRemove}
+        variant="danger"
+      />
+
+      <ConfirmModal
+        isOpen={workflowConfirmModal.isOpen}
+        title="Remove Workflow"
+        message={`Are you sure you want to remove "${workflowConfirmModal.workflowName}"?`}
+        confirmText="Remove"
+        cancelText="Cancel"
+        onConfirm={handleConfirmWorkflowRemove}
+        onCancel={handleCancelWorkflowRemove}
         variant="danger"
       />
     </div>
