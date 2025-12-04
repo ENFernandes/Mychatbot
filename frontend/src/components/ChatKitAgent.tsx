@@ -12,7 +12,7 @@ interface ChatKitAgentProps {
 const ChatKitAgent: React.FC<ChatKitAgentProps> = ({ 
   workflowId, 
   conversationId,
-  onConversationChange 
+  onConversationChange: _onConversationChange 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = React.useState<string | null>(null);

@@ -116,11 +116,12 @@ router.post('/session', requireAuth, enforceActiveSubscription, async (req: Requ
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error?.message || errorData.error || `HTTP ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' })) as { error?: { message?: string } | string };
+      const errorMessage = typeof errorData.error === 'object' ? errorData.error?.message : errorData.error;
+      throw new Error(errorMessage || `HTTP ${response.status}`);
     }
 
-    const session = await response.json();
+    const session = await response.json() as { client_secret: string };
     return res.json({ client_secret: session.client_secret });
   } catch (error: any) {
     console.error('Error creating ChatKit session:', error);

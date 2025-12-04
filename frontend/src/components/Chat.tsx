@@ -22,7 +22,7 @@ interface ChatProps {
   activeProjectId?: string | null;
 }
 
-const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange, workflowId, isAgentMode = false, selectedWorkflowId, activeProjectId }) => {
+const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversationChange, workflowId, isAgentMode: _isAgentMode = false, selectedWorkflowId: _selectedWorkflowId, activeProjectId }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
