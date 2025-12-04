@@ -12,7 +12,7 @@ interface ApiKey {
 interface Workflow {
   id: string;
   name: string;
-  model: string;
+  maskedWorkflowId?: string;
   instructions?: string;
   isDefault: boolean;
   createdAt: string;
@@ -21,19 +21,6 @@ interface Workflow {
 interface SettingsProps {
   onBackToChat?: () => void;
 }
-
-// Available models for the Agent workflow
-const AVAILABLE_MODELS = [
-  'gpt-4o',
-  'gpt-4o-mini',
-  'gpt-4-turbo',
-  'gpt-4',
-  'gpt-3.5-turbo',
-  'o1',
-  'o1-mini',
-  'o1-preview',
-  'gpt-5.1-codex',
-];
 
 const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
   const { plan, subscriptionStatus, trialEndsAt, currentPeriodEnd, token } = useAuth();
@@ -52,7 +39,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [workflowName, setWorkflowName] = useState('');
   const [workflowId, setWorkflowId] = useState('');
-  const [workflowModel, setWorkflowModel] = useState('gpt-4o');
   const [workflowInstructions, setWorkflowInstructions] = useState('');
   const [workflowIsDefault, setWorkflowIsDefault] = useState(false);
   const [workflowLoading, setWorkflowLoading] = useState(false);
@@ -144,7 +130,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
         await api.put(`/workflows/${editingWorkflow}`, {
           name: workflowName.trim(),
           workflowId: workflowId.trim(),
-          model: workflowModel,
           instructions: workflowInstructions.trim() || null,
           isDefault: workflowIsDefault,
         });
@@ -152,7 +137,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
         await api.post('/workflows', {
           name: workflowName.trim(),
           workflowId: workflowId.trim(),
-          model: workflowModel,
           instructions: workflowInstructions.trim() || null,
           isDefault: workflowIsDefault,
         });
@@ -170,7 +154,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     setEditingWorkflow(workflow.id);
     setWorkflowName(workflow.name);
     setWorkflowId(''); // Cannot retrieve encrypted ID
-    setWorkflowModel(workflow.model);
     setWorkflowInstructions(workflow.instructions || '');
     setWorkflowIsDefault(workflow.isDefault);
   };
@@ -179,7 +162,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
     setEditingWorkflow(null);
     setWorkflowName('');
     setWorkflowId('');
-    setWorkflowModel('gpt-4o');
     setWorkflowInstructions('');
     setWorkflowIsDefault(false);
   };
@@ -479,21 +461,6 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="workflow-model" className="form-label">Model</label>
-                <select
-                  id="workflow-model"
-                  value={workflowModel}
-                  onChange={(e) => setWorkflowModel(e.target.value)}
-                  disabled={workflowLoading}
-                  className="form-select"
-                >
-                  {AVAILABLE_MODELS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="workflow-instructions" className="form-label">Instructions (optional)</label>
                 <textarea
                   id="workflow-instructions"
@@ -595,7 +562,7 @@ const Settings: React.FC<SettingsProps> = ({ onBackToChat }) => {
                           )}
                         </span>
                         <span className="key-date">
-                          Model: {workflow.model} • Added {new Date(workflow.createdAt).toLocaleDateString()}
+                          {workflow.maskedWorkflowId || 'wf_****'} • Added {new Date(workflow.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                     </div>

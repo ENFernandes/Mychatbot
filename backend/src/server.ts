@@ -10,6 +10,7 @@ import projectsRouter from './routes/projects';
 import billingRouter from './routes/billing';
 import supportRouter from './routes/support';
 import workflowsRouter from './routes/workflows';
+import chatkitRouter from './routes/chatkit';
 import filesRouter from './routes/files';
 import { stripeWebhookHandler } from './routes/stripeWebhook';
 import { openaiChat, FileContent as OpenAIFileContent } from './providers/openaiClient';
@@ -40,6 +41,7 @@ app.use('/api/projects', projectsRouter);
 app.use('/api/billing', billingRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/workflows', workflowsRouter);
+app.use('/api/chatkit', chatkitRouter);
 app.use('/api/files', filesRouter);
 
 function parseProvider(value: string | undefined): ApiProvider | null {

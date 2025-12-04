@@ -17,8 +17,8 @@ interface ChatProps {
   conversationId: string | null;
   onConversationChange: (id: string | null) => void;
   workflowId?: string | null;
-  isAgentMode?: boolean;
-  selectedWorkflowId?: string | null;
+  isAgentMode?: boolean; // Deprecated - kept for compatibility but not used
+  selectedWorkflowId?: string | null; // Deprecated - kept for compatibility but not used
   activeProjectId?: string | null;
 }
 
@@ -190,46 +190,38 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         content: userMessage.content,
       });
 
-      let response;
-      
-      if (isAgentMode) {
-        // Use the Agent workflow endpoint
-        response = await api.post('/workflows/run', {
-          message: userMessage.content,
-          workflowId: selectedWorkflowId || undefined,
-        });
-      } else {
-        const chatPayload: any = {
-          provider,
-          model,
-          messages: optimisticMessages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
-        };
+      // Chat component now only handles regular chat (not agent mode)
+      // Agent mode is handled by ChatKitAgent component
+      const chatPayload: any = {
+        provider,
+        model,
+        messages: optimisticMessages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        })),
+      };
 
-        // Add conversationId for project context
-        if (convId) {
-          chatPayload.conversationId = convId;
-        }
-
-        // Add file IDs if present
-        if (fileIds.length > 0) {
-          chatPayload.fileIds = fileIds;
-        }
-
-        // If workflowId is provided, add it to the payload
-        if (workflowId) {
-          chatPayload.workflowId = workflowId;
-        }
-
-        response = await api.post('/chat', chatPayload);
+      // Add conversationId for project context
+      if (convId) {
+        chatPayload.conversationId = convId;
       }
+
+      // Add file IDs if present
+      if (fileIds.length > 0) {
+        chatPayload.fileIds = fileIds;
+      }
+
+      // If workflowId is provided, add it to the payload
+      if (workflowId) {
+        chatPayload.workflowId = workflowId;
+      }
+
+      const response = await api.post('/chat', chatPayload);
 
       const assistantMessage: Message = {
         role: 'assistant',
         content: response.data.message,
-        provider: isAgentMode ? 'agent' : provider,
+        provider: provider,
       };
 
       const fullConversation = [...optimisticMessages, assistantMessage];
@@ -239,7 +231,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         await api.post(`/conversations/${convId}/messages`, {
           role: 'assistant',
           content: assistantMessage.content,
-          provider: isAgentMode ? 'agent' : provider,
+          provider: provider,
         });
       } catch (persistError) {
         console.error('Error saving assistant message:', persistError);
@@ -391,13 +383,10 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       <div className="chat-messages">
         {messages.length === 0 ? (
           <div className="chat-empty">
-            <div className="empty-icon">{isAgentMode ? '🚀' : '💬'}</div>
-            <h2 className="empty-title">{isAgentMode ? 'Agent Mode Active' : 'Start a conversation'}</h2>
+            <div className="empty-icon">💬</div>
+            <h2 className="empty-title">Start a conversation</h2>
             <p className="empty-description">
-              {isAgentMode 
-                ? 'Send a message to interact with the AI Agent (powered by OpenAI Agents SDK)'
-                : `Send a message to begin chatting with ${model}`
-              }
+              {`Send a message to begin chatting with ${model}`}
             </p>
           </div>
         ) : (
@@ -424,7 +413,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         )}
         {isLoading && (
           <div className="message-wrapper message-assistant">
-            <div className="message-avatar">{getProviderIcon(isAgentMode ? 'agent' : provider)}</div>
+            <div className="message-avatar">{getProviderIcon(provider)}</div>
             <div className="message-content">
               <div className="message-bubble message-typing">
                 <div className="typing-indicator">

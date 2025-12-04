@@ -3,7 +3,6 @@ import React from 'react';
 interface Workflow {
   id: string;
   name: string;
-  model: string;
   isDefault: boolean;
 }
 
@@ -136,7 +135,7 @@ const ProviderSelector: React.FC<ProviderSelectorProps> = ({
           <option value="">Select Workflow...</option>
           {workflows.map((wf) => (
             <option key={wf.id} value={wf.id}>
-              {wf.name} {wf.isDefault ? '★' : ''} ({wf.model})
+              {wf.name} {wf.isDefault ? '★' : ''}
             </option>
           ))}
         </select>

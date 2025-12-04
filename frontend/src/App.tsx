@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import Chat from './components/Chat';
+import ChatKitAgent from './components/ChatKitAgent';
 import ProviderSelector from './components/ProviderSelector';
 import Settings from './pages/Settings';
 import ChatSidebar from './components/ChatSidebar';
@@ -24,7 +25,6 @@ import BrandIcon from '@frontend/icon/icon.png';
 interface Workflow {
   id: string;
   name: string;
-  model: string;
   isDefault: boolean;
 }
 
@@ -446,7 +446,23 @@ const AppShell: React.FC = () => {
                 </div>
               )}
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <Chat provider={provider} model={model} conversationId={activeConversationId} onConversationChange={setActiveConversationId} isAgentMode={isAgentMode} selectedWorkflowId={selectedWorkflowId} activeProjectId={activeProjectId} />
+                {isAgentMode && selectedWorkflowId ? (
+                  <ChatKitAgent 
+                    workflowId={selectedWorkflowId}
+                    conversationId={activeConversationId}
+                    onConversationChange={setActiveConversationId}
+                  />
+                ) : (
+                  <Chat 
+                    provider={provider} 
+                    model={model} 
+                    conversationId={activeConversationId} 
+                    onConversationChange={setActiveConversationId} 
+                    isAgentMode={false}
+                    selectedWorkflowId={null}
+                    activeProjectId={activeProjectId} 
+                  />
+                )}
               </div>
             </div>
           </div>

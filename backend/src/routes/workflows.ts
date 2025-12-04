@@ -8,17 +8,35 @@ import { enforceActiveSubscription } from '../middleware/subscription';
 
 const router = Router();
 
+// Helper function to mask workflow ID (e.g., "wf_abc123xyz" -> "wf_ab**yz")
+function maskWorkflowId(encryptedWorkflowId: Uint8Array | Buffer, iv: Uint8Array | Buffer): string {
+  try {
+    const encryptedBuffer = toBuffer(encryptedWorkflowId);
+    const ivBuffer = toBuffer(iv);
+    const decryptedId = decrypt(encryptedBuffer, ivBuffer);
+    
+    // Mask the workflow ID: show first 5 chars + ** + last 2 chars
+    if (decryptedId.length <= 7) {
+      return decryptedId.slice(0, 3) + '**' + decryptedId.slice(-2);
+    }
+    return decryptedId.slice(0, 5) + '**' + decryptedId.slice(-2);
+  } catch {
+    return 'wf_****';
+  }
+}
+
 // List all workflows for the user
 router.get('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
 
-    const workflows = await prisma.userWorkflow.findMany({
+    const workflowsRaw = await prisma.userWorkflow.findMany({
       where: { userId },
       select: {
         id: true,
         name: true,
-        model: true,
+        encryptedWorkflowId: true,
+        iv: true,
         instructions: true,
         isDefault: true,
         createdAt: true,
@@ -26,6 +44,17 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Add masked workflow ID to each workflow
+    const workflows = workflowsRaw.map((wf) => ({
+      id: wf.id,
+      name: wf.name,
+      maskedWorkflowId: maskWorkflowId(wf.encryptedWorkflowId, wf.iv),
+      instructions: wf.instructions,
+      isDefault: wf.isDefault,
+      createdAt: wf.createdAt,
+      updatedAt: wf.updatedAt,
+    }));
 
     return res.json({ workflows });
   } catch (error: any) {
@@ -40,12 +69,13 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
     const userId = (req as any).userId as string;
     const { id } = req.params;
 
-    const workflow = await prisma.userWorkflow.findFirst({
+    const workflowRaw = await prisma.userWorkflow.findFirst({
       where: { id, userId },
       select: {
         id: true,
         name: true,
-        model: true,
+        encryptedWorkflowId: true,
+        iv: true,
         instructions: true,
         isDefault: true,
         createdAt: true,
@@ -53,9 +83,19 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
       },
     });
 
-    if (!workflow) {
+    if (!workflowRaw) {
       return res.status(404).json({ error: 'Workflow not found' });
     }
+
+    const workflow = {
+      id: workflowRaw.id,
+      name: workflowRaw.name,
+      maskedWorkflowId: maskWorkflowId(workflowRaw.encryptedWorkflowId, workflowRaw.iv),
+      instructions: workflowRaw.instructions,
+      isDefault: workflowRaw.isDefault,
+      createdAt: workflowRaw.createdAt,
+      updatedAt: workflowRaw.updatedAt,
+    };
 
     return res.json({ workflow });
   } catch (error: any) {
@@ -68,7 +108,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response) => {
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { name, workflowId, model, instructions, isDefault } = req.body;
+    const { name, workflowId, instructions, isDefault } = req.body;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
@@ -89,26 +129,36 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       });
     }
 
-    const workflow = await prisma.userWorkflow.create({
+    const workflowRaw = await prisma.userWorkflow.create({
       data: {
         userId,
         name: name.trim(),
         encryptedWorkflowId: cipherText,
         iv,
-        model: model || 'gpt-4o',
         instructions: instructions || null,
         isDefault: isDefault || false,
       },
       select: {
         id: true,
         name: true,
-        model: true,
+        encryptedWorkflowId: true,
+        iv: true,
         instructions: true,
         isDefault: true,
         createdAt: true,
         updatedAt: true,
       },
     });
+
+    const workflow = {
+      id: workflowRaw.id,
+      name: workflowRaw.name,
+      maskedWorkflowId: maskWorkflowId(workflowRaw.encryptedWorkflowId, workflowRaw.iv),
+      instructions: workflowRaw.instructions,
+      isDefault: workflowRaw.isDefault,
+      createdAt: workflowRaw.createdAt,
+      updatedAt: workflowRaw.updatedAt,
+    };
 
     return res.status(201).json({ workflow });
   } catch (error: any) {
@@ -122,7 +172,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
     const { id } = req.params;
-    const { name, workflowId, model, instructions, isDefault } = req.body;
+    const { name, workflowId, instructions, isDefault } = req.body;
 
     // Check if workflow exists and belongs to user
     const existing = await prisma.userWorkflow.findFirst({
@@ -145,10 +195,6 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
       updateData.iv = iv;
     }
 
-    if (model) {
-      updateData.model = model;
-    }
-
     if (instructions !== undefined) {
       updateData.instructions = instructions || null;
     }
@@ -164,19 +210,30 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
       updateData.isDefault = isDefault;
     }
 
-    const workflow = await prisma.userWorkflow.update({
+    const workflowRaw = await prisma.userWorkflow.update({
       where: { id },
       data: updateData,
       select: {
         id: true,
         name: true,
-        model: true,
+        encryptedWorkflowId: true,
+        iv: true,
         instructions: true,
         isDefault: true,
         createdAt: true,
         updatedAt: true,
       },
     });
+
+    const workflow = {
+      id: workflowRaw.id,
+      name: workflowRaw.name,
+      maskedWorkflowId: maskWorkflowId(workflowRaw.encryptedWorkflowId, workflowRaw.iv),
+      instructions: workflowRaw.instructions,
+      isDefault: workflowRaw.isDefault,
+      createdAt: workflowRaw.createdAt,
+      updatedAt: workflowRaw.updatedAt,
+    };
 
     return res.json({ workflow });
   } catch (error: any) {
@@ -215,7 +272,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 router.post('/run', requireAuth, enforceActiveSubscription, async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId as string;
-    const { message, workflowId } = req.body;
+    const { message, messages, conversationId, workflowId } = req.body;
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ error: 'Message is required' });
@@ -262,11 +319,49 @@ router.post('/run', requireAuth, enforceActiveSubscription, async (req: Request,
       });
     }
 
+    // Build conversation history
+    let conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+
+    // If messages array is provided from frontend, use it
+    if (messages && Array.isArray(messages) && messages.length > 0) {
+      conversationHistory = messages.map((m: any) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+    } 
+    // Otherwise, if conversationId is provided, load history from database
+    else if (conversationId) {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: conversationId, userId },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' },
+            select: { role: true, content: true },
+          },
+        },
+      });
+
+      if (conversation && conversation.messages.length > 0) {
+        conversationHistory = conversation.messages.map((m) => ({
+          role: m.role.toLowerCase() as 'user' | 'assistant',
+          content: m.content,
+        }));
+        // Add current message to history
+        conversationHistory.push({ role: 'user', content: message.trim() });
+      } else {
+        // No history, just use current message
+        conversationHistory = [{ role: 'user', content: message.trim() }];
+      }
+    } 
+    // No messages or conversationId, just use current message
+    else {
+      conversationHistory = [{ role: 'user', content: message.trim() }];
+    }
+
     // Get workflow configuration if workflowId is provided
     let workflowConfig = {
       workflowId: 'wf_default',
-      model: 'gpt-4o',
-      instructions: 'You are a helpful AI assistant.',
+      instructions: undefined as string | undefined,
     };
 
     if (workflowId) {
@@ -282,8 +377,7 @@ router.post('/run', requireAuth, enforceActiveSubscription, async (req: Request,
           
           workflowConfig = {
             workflowId: decryptedWorkflowId,
-            model: workflow.model,
-            instructions: workflow.instructions || 'You are a helpful AI assistant.',
+            instructions: workflow.instructions || undefined,
           };
         } catch (err) {
           console.error('Failed to decrypt workflow ID:', err);
@@ -291,12 +385,12 @@ router.post('/run', requireAuth, enforceActiveSubscription, async (req: Request,
       }
     }
 
-    // Run the workflow
+    // Run the workflow with full conversation history
+    // Do NOT pass model - let the workflow_id use the model configured in Agent Builder
     const result = await runWorkflow({
-      input_as_text: message.trim(),
+      messages: conversationHistory,
       apiKey: decryptedApiKey,
       workflowId: workflowConfig.workflowId,
-      model: workflowConfig.model,
       instructions: workflowConfig.instructions,
     });
 

@@ -1,11 +1,15 @@
 import { Agent, AgentInputItem, Runner, withTrace } from "@openai/agents";
 
+export type WorkflowMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
 export type WorkflowInput = { 
-  input_as_text: string;
+  messages: WorkflowMessage[];
   apiKey: string;
   workflowId: string;
-  model: string;
-  instructions: string;
+  instructions?: string;  // Optional - can override workflow instructions
 };
 
 export type WorkflowResult = {
@@ -18,19 +22,37 @@ export const runWorkflow = async (workflow: WorkflowInput): Promise<WorkflowResu
   process.env.OPENAI_API_KEY = workflow.apiKey;
   
   // Create agent with dynamic configuration
-  const agent = new Agent({
+  // Do NOT specify model - let the workflow_id use the model configured in Agent Builder
+  const agentConfig: any = {
     name: "DynamicAgent",
-    instructions: workflow.instructions,
-    model: workflow.model as any,
     modelSettings: {
       store: true
     }
-  });
+  };
+
+  // Only add instructions if provided (can override workflow instructions)
+  if (workflow.instructions) {
+    agentConfig.instructions = workflow.instructions;
+  }
+
+  const agent = new Agent(agentConfig);
 
   return await withTrace("AgentPrompt", async () => {
-    const conversationHistory: AgentInputItem[] = [
-      { role: "user", content: [{ type: "input_text", text: workflow.input_as_text }] }
-    ];
+    // Convert full message history to AgentInputItem[]
+    const conversationHistory: AgentInputItem[] = workflow.messages.map((msg) => {
+      if (msg.role === 'assistant') {
+        return {
+          role: 'assistant' as const,
+          status: 'completed' as const,
+          content: [{ type: "output_text", text: msg.content }]
+        };
+      } else {
+        return {
+          role: 'user' as const,
+          content: [{ type: "input_text", text: msg.content }]
+        };
+      }
+    });
 
     const runner = new Runner({
       traceMetadata: {
@@ -41,12 +63,8 @@ export const runWorkflow = async (workflow: WorkflowInput): Promise<WorkflowResu
 
     const resultTemp = await runner.run(
       agent,
-      [
-        ...conversationHistory
-      ]
+      conversationHistory
     );
-
-    conversationHistory.push(...resultTemp.newItems.map((item) => item.rawItem));
 
     if (!resultTemp.finalOutput) {
       throw new Error("Agent result is undefined");
