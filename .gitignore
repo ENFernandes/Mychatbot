@@ -40,3 +40,5 @@ Thumbs.db
 
 *.zip
 koyeb-cli
+
+koyeb-bin/
