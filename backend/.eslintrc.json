@@ -19,6 +19,7 @@
       "no-console": "off",
       "prefer-const": "warn",
       "no-useless-escape": "warn",
+      "no-useless-catch": "off",
       "@typescript-eslint/no-require-imports": "warn",
       "@typescript-eslint/no-wrapper-object-types": "warn"
     },
