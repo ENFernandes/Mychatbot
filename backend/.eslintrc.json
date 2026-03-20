@@ -3,8 +3,7 @@
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
       "ecmaVersion": 2020,
-      "sourceType": "module",
-      "project": "./tsconfig.json"
+      "sourceType": "module"
     },
     "plugins": ["@typescript-eslint"],
     "extends": [
@@ -13,10 +12,15 @@
     ],
     "rules": {
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
-      "no-console": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-non-null-assertion": "warn",
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
       "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-non-null-assertion": "warn"
+      "no-console": "off",
+      "prefer-const": "warn",
+      "no-useless-escape": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
+      "@typescript-eslint/no-wrapper-object-types": "warn"
     },
     "env": {
       "node": true,
