@@ -267,6 +267,26 @@ app.post('/api/chat', requireAuth, enforceActiveSubscription, async (req: Reques
   }
 });
 
+// Root health check endpoint for Koyeb and other platforms
+app.get('/', async (req: Request, res: Response) => {
+  try {
+    // Check database connection
+    const dbConnected = await checkDatabaseConnection();
+    if (!dbConnected) {
+      return res.status(503).json({ 
+        status: 'unhealthy', 
+        database: 'disconnected' 
+      });
+    }
+    res.json({ status: 'ok', database: 'connected' });
+  } catch (error: any) {
+    res.status(503).json({ 
+      status: 'unhealthy', 
+      error: error.message 
+    });
+  }
+});
+
 app.get('/api/health', async (req: Request, res: Response) => {
   try {
     // Check database connection
