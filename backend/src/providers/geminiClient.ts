@@ -277,6 +277,7 @@ export async function geminiChatStream(
     const decoder = new TextDecoder();
     let buffer = '';
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -293,7 +294,7 @@ export async function geminiChatStream(
             if (text) {
               callbacks.onChunk(text);
             }
-          } catch (e) {}
+          } catch { /* ignore */ }
         }
       }
     }
@@ -305,7 +306,7 @@ export async function geminiChatStream(
         if (text) {
           callbacks.onChunk(text);
         }
-      } catch (e) {}
+      } catch { /* ignore */ }
     }
 
     callbacks.onComplete();

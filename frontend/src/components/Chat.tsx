@@ -218,6 +218,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
       const decoder = new TextDecoder();
 
       if (reader) {
+        // eslint-disable-next-line no-constant-condition
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -239,7 +240,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
                 } else if (event.type === 'error') {
                   throw new Error(event.error);
                 }
-              } catch (e) {}
+              } catch { /* ignore */ }
             }
           }
         }

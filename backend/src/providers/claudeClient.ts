@@ -267,6 +267,7 @@ export async function claudeChatStream(
     const decoder = new TextDecoder();
     let buffer = '';
 
+    // eslint-disable-next-line no-constant-condition
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -287,7 +288,7 @@ export async function claudeChatStream(
             } else if (event.type === 'message_stop') {
               callbacks.onComplete();
             }
-          } catch (e) {}
+          } catch { /* ignore */ }
         }
       }
     }

@@ -208,7 +208,7 @@ export async function openaiChat(params: {
         for (const file of uploadedFiles) {
           try {
             await openaiDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
-          } catch (e) {}
+          } catch { /* ignore */ }
         }
 
         return result;
@@ -290,7 +290,7 @@ export async function openaiChatStream(
         for (const file of uploadedFiles) {
           try {
             await openaiDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
-          } catch (e) {}
+          } catch { /* ignore */ }
         }
         return;
       }
