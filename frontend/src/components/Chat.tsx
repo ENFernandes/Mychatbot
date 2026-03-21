@@ -17,8 +17,8 @@ interface ChatProps {
   conversationId: string | null;
   onConversationChange: (id: string | null) => void;
   workflowId?: string | null;
-  isAgentMode?: boolean; // Deprecated - kept for compatibility but not used
-  selectedWorkflowId?: string | null; // Deprecated - kept for compatibility but not used
+  isAgentMode?: boolean;
+  selectedWorkflowId?: string | null;
   activeProjectId?: string | null;
 }
 
@@ -31,8 +31,8 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
   const [isUploading, setIsUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Provider icons mapping
   const getProviderIcon = (provider?: 'openai' | 'gemini' | 'claude' | 'agent'): string => {
     const icons: Record<string, string> = {
       openai: '🤖',
@@ -71,62 +71,45 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     }
   }, [inputMessage]);
 
-  // Clear attached files when provider changes
   useEffect(() => {
     setAttachedFiles([]);
   }, [provider]);
 
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const uploadAllFiles = async (): Promise<string[]> => {
     const pendingFiles = attachedFiles.filter((f) => f.status === 'pending');
     if (pendingFiles.length === 0) {
-      // Return IDs of already uploaded files
-      return attachedFiles
-        .filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-'))
-        .map((f) => f.id);
+      return attachedFiles.filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-')).map((f) => f.id);
     }
 
     setIsUploading(true);
     const uploadedIds: string[] = [];
 
-    // Update all pending files to uploading status
-    setAttachedFiles((prev) =>
-      prev.map((f) => (f.status === 'pending' ? { ...f, status: 'uploading' as const } : f))
-    );
+    setAttachedFiles((prev) => prev.map((f) => (f.status === 'pending' ? { ...f, status: 'uploading' as const } : f)));
 
     for (const fileItem of pendingFiles) {
       try {
         const response = await uploadFile(fileItem.file);
         uploadedIds.push(response.id);
-
-        // Update file status to uploaded with the server ID
-        setAttachedFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileItem.id
-              ? { ...f, id: response.id, status: 'uploaded' as const }
-              : f
-          )
-        );
+        setAttachedFiles((prev) => prev.map((f) => (f.id === fileItem.id ? { ...f, id: response.id, status: 'uploaded' as const } : f)));
       } catch (err: any) {
         console.error('Error uploading file:', err);
-        // Update file status to error
-        setAttachedFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileItem.id
-              ? { ...f, status: 'error' as const, error: err.message || 'Upload failed' }
-              : f
-          )
-        );
+        setAttachedFiles((prev) => prev.map((f) => (f.id === fileItem.id ? { ...f, status: 'error' as const, error: err.message || 'Upload failed' } : f)));
       }
     }
 
     setIsUploading(false);
 
-    // Get all successfully uploaded file IDs
     return [
       ...uploadedIds,
-      ...attachedFiles
-        .filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-'))
-        .map((f) => f.id),
+      ...attachedFiles.filter((f) => f.status === 'uploaded' && !f.id.startsWith('temp-')).map((f) => f.id),
     ];
   };
 
@@ -138,7 +121,6 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     const previousMessages = messages;
     const trimmedInput = inputMessage.trim();
 
-    // Upload files first
     let fileIds: string[] = [];
     const filenames: string[] = attachedFiles.map((f) => f.filename);
 
@@ -165,7 +147,7 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
     const optimisticMessages = [...previousMessages, userMessage];
     setMessages(optimisticMessages);
     setInputMessage('');
-    setAttachedFiles([]); // Clear attached files after sending
+    setAttachedFiles([]);
     setError(null);
     setIsLoading(true);
 
@@ -190,8 +172,6 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
         content: userMessage.content,
       });
 
-      // Chat component now only handles regular chat (not agent mode)
-      // Agent mode is handled by ChatKitAgent component
       const chatPayload: any = {
         provider,
         model,
@@ -199,62 +179,111 @@ const Chat: React.FC<ChatProps> = ({ provider, model, conversationId, onConversa
           role: msg.role,
           content: msg.content,
         })),
+        stream: true,
       };
 
-      // Add conversationId for project context
       if (convId) {
         chatPayload.conversationId = convId;
       }
 
-      // Add file IDs if present
       if (fileIds.length > 0) {
         chatPayload.fileIds = fileIds;
       }
 
-      // If workflowId is provided, add it to the payload
       if (workflowId) {
         chatPayload.workflowId = workflowId;
       }
 
-      const response = await api.post('/chat', chatPayload);
+      abortControllerRef.current = new AbortController();
+      let fullResponse = '';
 
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.data.message,
-        provider: provider,
-      };
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', provider }]);
 
-      const fullConversation = [...optimisticMessages, assistantMessage];
-      setMessages(fullConversation);
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify(chatPayload),
+        signal: abortControllerRef.current.signal,
+      });
 
-      try {
-        await api.post(`/conversations/${convId}/messages`, {
-          role: 'assistant',
-          content: assistantMessage.content,
-          provider: provider,
-        });
-      } catch (persistError) {
-        console.error('Error saving assistant message:', persistError);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+        throw new Error(errorData.error || 'Request failed');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(line.slice(6));
+                if (event.type === 'chunk') {
+                  fullResponse += event.text;
+                  setMessages((prev) =>
+                    prev.map((msg, idx) =>
+                      idx === prev.length - 1 ? { ...msg, content: fullResponse } : msg
+                    )
+                  );
+                } else if (event.type === 'error') {
+                  throw new Error(event.error);
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      }
+
+      setMessages((prev) =>
+        prev.map((msg, idx) =>
+          idx === prev.length - 1 ? { ...msg, content: fullResponse || msg.content } : msg
+        )
+      );
+
+      if (fullResponse) {
+        try {
+          await api.post(`/conversations/${convId}/messages`, {
+            role: 'assistant',
+            content: fullResponse,
+            provider: provider,
+          });
+        } catch (persistError) {
+          console.error('Error saving assistant message:', persistError);
+        }
       }
     } catch (err: any) {
-      console.error('Error sending message:', err);
+      if (err.name === 'AbortError') {
+        console.log('Request aborted');
+      } else {
+        console.error('Error sending message:', err);
 
-      if (createdConversationId) {
-        try {
-          await api.delete(`/conversations/${createdConversationId}`);
-          window.dispatchEvent(new CustomEvent('conversation-created'));
-        } catch (cleanupError) {
-          console.error('Error deleting conversation after failure:', cleanupError);
+        if (createdConversationId) {
+          try {
+            await api.delete(`/conversations/${createdConversationId}`);
+            window.dispatchEvent(new CustomEvent('conversation-created'));
+          } catch (cleanupError) {
+            console.error('Error deleting conversation after failure:', cleanupError);
+          }
+          onConversationChange(null);
         }
-        onConversationChange(null);
-      }
 
-      setMessages(previousMessages);
-      setError(
-        err.response?.data?.error || 'Error communicating with the API. Please check your API keys.'
-      );
+        setMessages(previousMessages);
+        setError(err.response?.data?.error || err.message || 'Error communicating with the API. Please check your API keys.');
+      }
     } finally {
       setIsLoading(false);
+      abortControllerRef.current = null;
     }
   };
 

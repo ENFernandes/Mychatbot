@@ -17,6 +17,12 @@ export interface UploadedFileInfo {
   uri?: string;
 }
 
+export interface StreamCallbacks {
+  onChunk: (text: string) => void;
+  onComplete: () => void;
+  onError: (error: Error) => void;
+}
+
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta';
 const GEMINI_UPLOAD_URL = 'https://generativelanguage.googleapis.com/upload/v1beta';
 
@@ -37,21 +43,14 @@ async function geminiFetch(apiKey: string, path: string, init: RequestInit): Pro
   return res.json();
 }
 
-/**
- * Upload a file to Gemini using the Files API
- * Returns file metadata including the file URI
- */
 export async function geminiUploadFile(params: {
   apiKey: string;
   file: FileContent;
 }): Promise<UploadedFileInfo> {
-  // Step 1: Start resumable upload to get upload URI
   const startUploadUrl = `${GEMINI_UPLOAD_URL}/files?key=${params.apiKey}`;
-  
+
   const metadata = {
-    file: {
-      display_name: params.file.filename,
-    },
+    file: { display_name: params.file.filename },
   };
 
   const startRes = await fetch(startUploadUrl, {
@@ -76,7 +75,6 @@ export async function geminiUploadFile(params: {
     throw new Error('Failed to get upload URI from Gemini');
   }
 
-  // Step 2: Upload the file data
   const uploadRes = await fetch(uploadUri, {
     method: 'POST',
     headers: {
@@ -102,18 +100,13 @@ export async function geminiUploadFile(params: {
   };
 }
 
-/**
- * Delete a file from Gemini
- */
 export async function geminiDeleteFile(params: {
   apiKey: string;
   fileId: string;
 }): Promise<boolean> {
   try {
     const url = `${GEMINI_API_URL}/${params.fileId}?key=${params.apiKey}`;
-    const res = await fetch(url, {
-      method: 'DELETE',
-    });
+    const res = await fetch(url, { method: 'DELETE' });
     return res.ok;
   } catch (error) {
     console.error('Error deleting file from Gemini:', error);
@@ -121,10 +114,6 @@ export async function geminiDeleteFile(params: {
   }
 }
 
-/**
- * Wait for file to be processed by Gemini
- * Gemini needs time to process uploaded files
- */
 async function waitForFileProcessing(apiKey: string, fileName: string, maxAttempts: number = 10): Promise<boolean> {
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -132,15 +121,12 @@ async function waitForFileProcessing(apiKey: string, fileName: string, maxAttemp
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json() as { state?: string };
-        if (data.state === 'ACTIVE') {
-          return true;
-        }
+        if (data.state === 'ACTIVE') return true;
         if (data.state === 'FAILED') {
           console.error('File processing failed:', data);
           return false;
         }
       }
-      // Wait before next attempt
       await new Promise(resolve => setTimeout(resolve, 1000));
     } catch (error) {
       console.error('Error checking file status:', error);
@@ -149,9 +135,6 @@ async function waitForFileProcessing(apiKey: string, fileName: string, maxAttemp
   return false;
 }
 
-/**
- * Build content parts with files for Gemini
- */
 function buildPartsWithFiles(
   textContent: string,
   files: FileContent[],
@@ -159,46 +142,61 @@ function buildPartsWithFiles(
 ): any[] {
   const parts: any[] = [];
 
-  // Add file parts
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const uploaded = uploadedFiles[i];
 
     if (uploaded && uploaded.uri) {
-      // Use file URI reference
       parts.push({
-        file_data: {
-          mime_type: file.mimeType,
-          file_uri: uploaded.uri,
-        },
-      });
-    } else if (file.mimeType.startsWith('image/')) {
-      // For images without upload, use inline base64
-      parts.push({
-        inline_data: {
-          mime_type: file.mimeType,
-          data: file.buffer.toString('base64'),
-        },
+        file_data: { mime_type: file.mimeType, file_uri: uploaded.uri },
       });
     } else {
-      // For other files, try to include as inline data
       parts.push({
-        inline_data: {
-          mime_type: file.mimeType,
-          data: file.buffer.toString('base64'),
-        },
+        inline_data: { mime_type: file.mimeType, data: file.buffer.toString('base64') },
       });
     }
   }
 
-  // Add text part
   if (textContent) {
-    parts.push({
-      text: textContent,
-    });
+    parts.push({ text: textContent });
   }
 
   return parts;
+}
+
+async function uploadFilesIfNeeded(
+  apiKey: string,
+  files?: FileContent[]
+): Promise<UploadedFileInfo[]> {
+  const uploadedFiles: UploadedFileInfo[] = [];
+
+  if (!files || files.length === 0) return uploadedFiles;
+
+  const shouldUpload = files.some(f =>
+    f.buffer.length > 4 * 1024 * 1024 ||
+    f.mimeType === 'application/pdf' ||
+    f.mimeType.startsWith('video/') ||
+    f.mimeType.startsWith('audio/')
+  );
+
+  for (const file of files) {
+    if (shouldUpload) {
+      try {
+        const uploaded = await geminiUploadFile({ apiKey, file });
+        if (uploaded.providerId) {
+          await waitForFileProcessing(apiKey, uploaded.providerId);
+        }
+        uploadedFiles.push(uploaded);
+      } catch (err) {
+        console.error('Error uploading file to Gemini:', err);
+        uploadedFiles.push({ providerId: '', filename: file.filename, mimeType: file.mimeType });
+      }
+    } else {
+      uploadedFiles.push({ providerId: '', filename: file.filename, mimeType: file.mimeType });
+    }
+  }
+
+  return uploadedFiles;
 }
 
 export async function geminiChat(params: {
@@ -208,82 +206,24 @@ export async function geminiChat(params: {
   files?: FileContent[];
 }): Promise<{ message: string; usage?: unknown }> {
   const modelId = params.model.replace(/^models\//, '');
+  const uploadedFiles = await uploadFilesIfNeeded(params.apiKey, params.files);
 
-  // Upload files if provided (for large files or special types)
-  const uploadedFiles: UploadedFileInfo[] = [];
-  const shouldUploadFiles = params.files && params.files.some(f => 
-    f.buffer.length > 4 * 1024 * 1024 || // Files larger than 4MB
-    f.mimeType === 'application/pdf' ||
-    f.mimeType.startsWith('video/') ||
-    f.mimeType.startsWith('audio/')
-  );
-
-  if (shouldUploadFiles && params.files) {
-    for (const file of params.files) {
-      try {
-        const uploaded = await geminiUploadFile({ apiKey: params.apiKey, file });
-        
-        // Wait for file to be processed
-        if (uploaded.providerId) {
-          await waitForFileProcessing(params.apiKey, uploaded.providerId);
-        }
-        
-        uploadedFiles.push(uploaded);
-      } catch (err) {
-        console.error('Error uploading file to Gemini:', err);
-        // Push empty placeholder for inline fallback
-        uploadedFiles.push({
-          providerId: '',
-          filename: file.filename,
-          mimeType: file.mimeType,
-        });
-      }
-    }
-  } else if (params.files) {
-    // For small files, just mark as not uploaded (will use inline)
-    for (const file of params.files) {
-      uploadedFiles.push({
-        providerId: '',
-        filename: file.filename,
-        mimeType: file.mimeType,
-      });
-    }
-  }
-
-  // Build the content with files
   let contents: any[];
 
   if (params.files && params.files.length > 0) {
-    // Build conversation with files attached to the last user message
-    const conversationText = params.messages
-      .map((m) => `${m.role}: ${m.content}`)
-      .join('\n');
-
+    const conversationText = params.messages.map((m) => `${m.role}: ${m.content}`).join('\n');
     const parts = buildPartsWithFiles(conversationText, params.files, uploadedFiles);
     contents = [{ parts }];
   } else {
-    // Standard text-only content
-    contents = [
-      {
-        parts: [
-          {
-            text: params.messages.map((m) => `${m.role}: ${m.content}`).join('\n'),
-          },
-        ],
-      },
-    ];
+    contents = [{ parts: [{ text: params.messages.map((m) => `${m.role}: ${m.content}`).join('\n') }] }];
   }
 
   const data = await geminiFetch(
     params.apiKey,
     `models/${encodeURIComponent(modelId)}:generateContent`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ contents }),
-    }
+    { method: 'POST', body: JSON.stringify({ contents }) }
   );
 
-  // Clean up uploaded files
   for (const file of uploadedFiles) {
     if (file.providerId) {
       await geminiDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
@@ -292,6 +232,92 @@ export async function geminiChat(params: {
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
   return { message: text, usage: data?.usageMetadata };
+}
+
+export async function geminiChatStream(
+  params: {
+    apiKey: string;
+    model: string;
+    messages: ChatMessage[];
+    files?: FileContent[];
+  },
+  callbacks: StreamCallbacks
+): Promise<void> {
+  const modelId = params.model.replace(/^models\//, '');
+  const uploadedFiles = await uploadFilesIfNeeded(params.apiKey, params.files);
+
+  let contents: any[];
+
+  if (params.files && params.files.length > 0) {
+    const conversationText = params.messages.map((m) => `${m.role}: ${m.content}`).join('\n');
+    const parts = buildPartsWithFiles(conversationText, params.files, uploadedFiles);
+    contents = [{ parts }];
+  } else {
+    contents = [{ parts: [{ text: params.messages.map((m) => `${m.role}: ${m.content}`).join('\n') }] }];
+  }
+
+  try {
+    const url = `${GEMINI_API_URL}/models/${encodeURIComponent(modelId)}:streamGenerateContent?key=${params.apiKey}&alt=sse`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Gemini API error ${res.status}: ${text}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            if (text) {
+              callbacks.onChunk(text);
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (buffer.startsWith('data: ')) {
+      try {
+        const data = JSON.parse(buffer.slice(6));
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        if (text) {
+          callbacks.onChunk(text);
+        }
+      } catch (e) {}
+    }
+
+    callbacks.onComplete();
+  } catch (error) {
+    callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+  } finally {
+    for (const file of uploadedFiles) {
+      if (file.providerId) {
+        await geminiDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
+      }
+    }
+  }
 }
 
 export async function geminiListModels(apiKey: string): Promise<string[]> {

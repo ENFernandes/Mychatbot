@@ -10,9 +10,14 @@
 
 Plataforma SaaS de chatbot multi-provider (OpenAI, Google Gemini, Anthropic Claude) com:
 - Autenticação JWT + verificação de email + recuperação de password
+- **Streaming de respostas em tempo real via SSE (Server-Sent Events)**
 - Persistência de conversas em PostgreSQL via Prisma
 - API keys por utilizador com encriptação AES-256-GCM
-- Subscrições Stripe (EUR 5/mês, trial 2 dias)
+- Subscrições Stripe (USD 5/mês, trial 4 horas)
+- **Rate limiting** para proteção contra abuse
+- **Testes automatizados** (Jest + Vitest)
+- **React Router** para navegação
+- **Error Boundaries** para tratamento de erros
 - Deploy em Docker + Nginx
 
 URL de produção: `https://multiproviderai.me`
@@ -29,22 +34,26 @@ Stack principal: Node.js · Express · TypeScript · React · PostgreSQL · Pris
 │   ├── architecture.md     ← stack, fluxos, decisões de design
 │   ├── auth.md             ← JWT, registo, verificação, reset de password
 │   ├── billing.md          ← Stripe, planos, webhooks, backfill
+│   ├── chat.md             ← fluxo de chat, streaming SSE
 │   ├── providers.md        ← OpenAI/Gemini/Claude, contrato de interface
 │   ├── database.md         ← schema Prisma, encriptação, migrações
+│   ├── testing.md          ← setup de testes, convenções
 │   └── conventions.md      ← naming, HTTP, logging, commits
 ├── backend/src/
 │   ├── config/             ← Prisma singleton
-│   ├── middleware/         ← auth JWT
-│   ├── providers/          ← clientes OpenAI, Gemini, Claude
-│   ├── routes/             ← auth, apiKeys, conversations, models, billing, stripeWebhook
-│   ├── services/           ← emailService, encryptionService
+│   ├── middleware/         ← auth, rateLimiter
+│   ├── providers/          ← clientes OpenAI, Gemini, Claude (com streaming)
+│   ├── routes/             ← auth, apiKeys, conversations, models, billing
+│   ├── services/           ← chatService, emailService, encryptionService
 │   └── server.ts
 ├── frontend/src/
-│   ├── components/         ← Chat, ProviderSelector, ModelSelect, ConversationSidebar
-│   ├── pages/              ← Login, Register, RecoverPassword, Settings
-│   ├── context/            ← AuthContext
+│   ├── components/         ← Chat, ProviderSelector, ConversationSidebar
+│   ├── components/ErrorBoundary/ ← error boundaries
+│   ├── hooks/              ← useProviders, useChat
+│   ├── pages/              ← Landing, Settings, etc.
+│   ├── context/            ← AuthContext, ThemeContext
 │   ├── services/           ← api.ts (único ponto de acesso ao backend)
-│   └── App.tsx
+│   └── App.tsx             ← com React Router
 ├── database/               ← Dockerfile PostgreSQL
 ├── docker-compose.yml
 └── env.example             ← todas as variáveis necessárias
@@ -58,9 +67,11 @@ Stack principal: Node.js · Express · TypeScript · React · PostgreSQL · Pris
 |--------------------------------|------------------------------|
 | Auth, JWT, login, registo      | `docs/auth.md`               |
 | Stripe, planos, subscrições    | `docs/billing.md`            |
+| Chat, streaming, SSE           | `docs/chat.md`               |
 | OpenAI / Gemini / Claude       | `docs/providers.md`          |
 | Schema Prisma, base de dados   | `docs/database.md`           |
 | Encriptação de API keys        | `docs/database.md`           |
+| Testes                        | `docs/testing.md`            |
 | Estrutura geral, novos módulos | `docs/architecture.md`       |
 | Naming, logging, HTTP codes    | `docs/conventions.md`        |
 
@@ -99,6 +110,8 @@ cd backend && npm run dev              # desenvolvimento local
 cd backend && npm run type-check       # verificar tipos (sem compilar)
 cd backend && npm run lint             # ESLint
 cd backend && npm run build            # compilar para produção
+cd backend && npm run test             # Jest tests
+cd backend && npm run test:coverage    # Jest com cobertura
 cd backend && npm run prisma:generate  # regenerar cliente Prisma
 cd backend && npm run prisma:push      # aplicar schema (só dev)
 cd backend && npm run prisma:migrate   # migrações versionadas (produção)
@@ -107,6 +120,8 @@ cd backend && npm run prisma:migrate   # migrações versionadas (produção)
 cd frontend && npm run dev             # desenvolvimento local
 cd frontend && npm run type-check      # verificar tipos
 cd frontend && npm run build           # build produção
+cd frontend && npm run test            # Vitest tests
+cd frontend && npm run test:coverage   # Vitest com cobertura
 
 # Docker
 docker-compose up --build              # arrancar todos os serviços
@@ -137,4 +152,5 @@ stripe listen --forward-to localhost:3001/api/stripe/webhook
 - Alterar `ENCRYPTION_KEY` sem processo de re-encriptação.
 - Usar `prisma:push` em produção.
 - Criar `PrismaClient` fora de `config/database.ts`.
-- Fazer `fetch`/`axios` directamente num componente React.
+- Fazer `fetch`/`axios` directamente num componente React (usar api.ts).
+- Ignorar os testes antes de fazer commit.

@@ -16,6 +16,12 @@ export interface UploadedFileInfo {
   mimeType: string;
 }
 
+export interface StreamCallbacks {
+  onChunk: (text: string) => void;
+  onComplete: () => void;
+  onError: (error: Error) => void;
+}
+
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1';
 
 async function anthropicFetch(apiKey: string, path: string, init: RequestInit, useBeta: boolean = false): Promise<any> {
@@ -27,15 +33,11 @@ async function anthropicFetch(apiKey: string, path: string, init: RequestInit, u
     ...(init.headers as Record<string, string> || {}),
   };
 
-  // Add beta header for files API
   if (useBeta) {
     headers['anthropic-beta'] = 'files-api-2025-04-14,pdfs-2024-09-25';
   }
 
-  const res = await fetch(url, {
-    ...init,
-    headers,
-  });
+  const res = await fetch(url, { ...init, headers });
 
   if (!res.ok) {
     const text = await res.text();
@@ -45,17 +47,11 @@ async function anthropicFetch(apiKey: string, path: string, init: RequestInit, u
   return res.json();
 }
 
-/**
- * Upload a file to Anthropic (Claude)
- * Uses the Files API beta
- */
 export async function claudeUploadFile(params: {
   apiKey: string;
   file: FileContent;
 }): Promise<UploadedFileInfo> {
   const url = `${ANTHROPIC_API_URL}/files`;
-  
-  // Create form data for multipart upload
   const formData = new FormData();
   const blob = new Blob([params.file.buffer], { type: params.file.mimeType });
   formData.append('file', blob, params.file.filename);
@@ -84,9 +80,6 @@ export async function claudeUploadFile(params: {
   };
 }
 
-/**
- * Delete a file from Anthropic
- */
 export async function claudeDeleteFile(params: {
   apiKey: string;
   fileId: string;
@@ -108,10 +101,6 @@ export async function claudeDeleteFile(params: {
   }
 }
 
-/**
- * Build message content with files for Claude
- * Claude supports inline document content as base64 or file references
- */
 function buildContentWithFiles(
   textContent: string,
   files: FileContent[],
@@ -119,84 +108,68 @@ function buildContentWithFiles(
 ): any[] {
   const content: any[] = [];
 
-  // Add file content blocks
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const uploaded = uploadedFiles[i];
 
     if (file.mimeType.startsWith('image/')) {
-      // For images, use base64 inline (Claude supports this directly)
       content.push({
         type: 'image',
-        source: {
-          type: 'base64',
-          media_type: file.mimeType,
-          data: file.buffer.toString('base64'),
-        },
+        source: { type: 'base64', media_type: file.mimeType, data: file.buffer.toString('base64') },
       });
     } else if (file.mimeType === 'application/pdf') {
-      // For PDFs, use file reference if uploaded, or base64
-      if (uploaded) {
-        content.push({
-          type: 'document',
-          source: {
-            type: 'file',
-            file_id: uploaded.providerId,
-          },
-        });
+      if (uploaded?.providerId) {
+        content.push({ type: 'document', source: { type: 'file', file_id: uploaded.providerId } });
       } else {
-        // Fallback to base64 for PDFs
         content.push({
           type: 'document',
-          source: {
-            type: 'base64',
-            media_type: file.mimeType,
-            data: file.buffer.toString('base64'),
-          },
+          source: { type: 'base64', media_type: file.mimeType, data: file.buffer.toString('base64') },
         });
       }
     } else {
-      // For other document types, try file reference first
-      if (uploaded) {
-        content.push({
-          type: 'document',
-          source: {
-            type: 'file',
-            file_id: uploaded.providerId,
-          },
-        });
+      if (uploaded?.providerId) {
+        content.push({ type: 'document', source: { type: 'file', file_id: uploaded.providerId } });
       } else {
-        // For text-based files, include content as text
         try {
           const textFromFile = file.buffer.toString('utf-8');
-          content.push({
-            type: 'text',
-            text: `[Content from ${file.filename}]:\n${textFromFile}`,
-          });
+          content.push({ type: 'text', text: `[Content from ${file.filename}]:\n${textFromFile}` });
         } catch {
-          // If not text, try base64
           content.push({
             type: 'document',
-            source: {
-              type: 'base64',
-              media_type: file.mimeType,
-              data: file.buffer.toString('base64'),
-            },
+            source: { type: 'base64', media_type: file.mimeType, data: file.buffer.toString('base64') },
           });
         }
       }
     }
   }
 
-  // Add text content
   if (textContent) {
-    content.push({
-      type: 'text',
-      text: textContent,
-    });
+    content.push({ type: 'text', text: textContent });
   }
 
   return content;
+}
+
+async function uploadFilesIfNeeded(apiKey: string, files?: FileContent[]): Promise<UploadedFileInfo[]> {
+  const uploadedFiles: UploadedFileInfo[] = [];
+
+  if (!files || files.length === 0) return uploadedFiles;
+
+  for (const file of files) {
+    if (!file.mimeType.startsWith('image/')) {
+      try {
+        const uploaded = await claudeUploadFile({ apiKey, file });
+        uploadedFiles.push(uploaded);
+      } catch (err) {
+        console.error('Error uploading file to Anthropic:', err);
+        uploadedFiles.push({ providerId: '', filename: file.filename, mimeType: file.mimeType });
+      }
+    } else {
+      uploadedFiles.push({ providerId: '', filename: file.filename, mimeType: file.mimeType });
+    }
+  }
+
+  return uploadedFiles;
 }
 
 export async function claudeChat(params: {
@@ -205,43 +178,12 @@ export async function claudeChat(params: {
   messages: ChatMessage[];
   files?: FileContent[];
 }): Promise<{ message: string; usage?: unknown }> {
-  // Upload files if provided
-  const uploadedFiles: UploadedFileInfo[] = [];
-  if (params.files && params.files.length > 0) {
-    for (const file of params.files) {
-      try {
-        // Only upload PDFs and documents, images can be sent inline
-        if (!file.mimeType.startsWith('image/')) {
-          const uploaded = await claudeUploadFile({ apiKey: params.apiKey, file });
-          uploadedFiles.push(uploaded);
-        } else {
-          // For images, we don't need to upload, just mark as placeholder
-          uploadedFiles.push({
-            providerId: '',
-            filename: file.filename,
-            mimeType: file.mimeType,
-          });
-        }
-      } catch (err) {
-        console.error('Error uploading file to Anthropic:', err);
-        // Continue without file upload, will use base64 fallback
-        uploadedFiles.push({
-          providerId: '',
-          filename: file.filename,
-          mimeType: file.mimeType,
-        });
-      }
-    }
-  }
+  const uploadedFiles = await uploadFilesIfNeeded(params.apiKey, params.files);
 
-  // Build messages with file content
   const processedMessages = params.messages.map((m, idx) => {
     const isLastUserMessage = m.role === 'user' &&
-      idx === params.messages.map((msg, i) => ({ msg, i }))
-        .filter(({ msg }) => msg.role === 'user')
-        .pop()?.i;
+      idx === params.messages.map((msg, i) => ({ msg, i })).filter(({ msg }) => msg.role === 'user').pop()?.i;
 
-    // Attach files to the last user message
     if (isLastUserMessage && params.files && params.files.length > 0) {
       return {
         role: m.role === 'developer' ? 'user' : m.role,
@@ -249,19 +191,10 @@ export async function claudeChat(params: {
       };
     }
 
-    return {
-      role: m.role === 'developer' ? 'user' : m.role,
-      content: m.content,
-    };
+    return { role: m.role === 'developer' ? 'user' : m.role, content: m.content };
   });
 
-  const payload = {
-    model: params.model,
-    messages: processedMessages,
-    max_tokens: 4096,
-  };
-
-  // Use beta header if we have files
+  const payload = { model: params.model, messages: processedMessages, max_tokens: 4096 };
   const useBeta = params.files && params.files.length > 0;
 
   const data = await anthropicFetch(params.apiKey, 'messages', {
@@ -269,7 +202,6 @@ export async function claudeChat(params: {
     body: JSON.stringify(payload),
   }, useBeta);
 
-  // Clean up uploaded files
   for (const file of uploadedFiles) {
     if (file.providerId) {
       await claudeDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
@@ -278,6 +210,98 @@ export async function claudeChat(params: {
 
   const text = data?.content?.[0]?.text || data?.content?.[0]?.content?.[0]?.text || '';
   return { message: text, usage: data?.usage };
+}
+
+export async function claudeChatStream(
+  params: {
+    apiKey: string;
+    model: string;
+    messages: ChatMessage[];
+    files?: FileContent[];
+  },
+  callbacks: StreamCallbacks
+): Promise<void> {
+  const uploadedFiles = await uploadFilesIfNeeded(params.apiKey, params.files);
+
+  const processedMessages = params.messages.map((m, idx) => {
+    const isLastUserMessage = m.role === 'user' &&
+      idx === params.messages.map((msg, i) => ({ msg, i })).filter(({ msg }) => msg.role === 'user').pop()?.i;
+
+    if (isLastUserMessage && params.files && params.files.length > 0) {
+      return {
+        role: m.role === 'developer' ? 'user' : m.role,
+        content: buildContentWithFiles(m.content, params.files, uploadedFiles),
+      };
+    }
+
+    return { role: m.role === 'developer' ? 'user' : m.role, content: m.content };
+  });
+
+  const payload = { model: params.model, messages: processedMessages, max_tokens: 4096, stream: true };
+  const useBeta = params.files && params.files.length > 0;
+
+  const url = `${ANTHROPIC_API_URL}/messages`;
+  const headers: Record<string, string> = {
+    'x-api-key': params.apiKey,
+    'anthropic-version': '2023-06-01',
+    'content-type': 'application/json',
+  };
+
+  if (useBeta) {
+    headers['anthropic-beta'] = 'files-api-2025-04-14,pdfs-2024-09-25';
+  }
+
+  try {
+    const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Anthropic API error ${res.status}: ${text}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === 'content_block_delta') {
+              const text = event.delta?.text || '';
+              if (text) {
+                callbacks.onChunk(text);
+              }
+            } else if (event.type === 'message_stop') {
+              callbacks.onComplete();
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    callbacks.onComplete();
+  } catch (error) {
+    callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+  } finally {
+    for (const file of uploadedFiles) {
+      if (file.providerId) {
+        await claudeDeleteFile({ apiKey: params.apiKey, fileId: file.providerId });
+      }
+    }
+  }
 }
 
 export async function claudeListModels(apiKey: string): Promise<string[]> {

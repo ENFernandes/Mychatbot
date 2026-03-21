@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Chat from './components/Chat';
 import ChatKitAgent from './components/ChatKitAgent';
 import ProviderSelector from './components/ProviderSelector';
@@ -16,11 +17,12 @@ import BillingSuccess from './pages/BillingSuccess';
 import BillingCancel from './pages/BillingCancel';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
-import { api } from './services/api';
 import TrialCountdown from './components/TrialCountdown';
 import UpdatePlan from './pages/UpdatePlan';
-import './App.css';
+import ErrorBoundary from './components/ErrorBoundary';
+import { api } from './services/api';
 import BrandIcon from '@frontend/icon/icon.png';
+import './App.css';
 
 interface Workflow {
   id: string;
@@ -28,7 +30,7 @@ interface Workflow {
   isDefault: boolean;
 }
 
-const AppShell: React.FC = () => {
+const AuthenticatedLayout: React.FC = () => {
   const { token, plan, trialEndsAt, isBillingLocked, logout } = useAuth();
   const [view, setView] = useState<'chat' | 'settings' | 'update-plan'>('chat');
   const [provider, setProvider] = useState<'openai' | 'gemini' | 'claude'>('openai');
@@ -44,16 +46,10 @@ const AppShell: React.FC = () => {
   const [isAgentMode, setIsAgentMode] = useState(false);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+
   const handleOpenUpdatePlan = useCallback(() => setView('update-plan'), []);
-  
-  const handleAgentModeToggle = useCallback(() => {
-    setIsAgentMode(prev => !prev);
-  }, []);
-
-  const handleWorkflowChange = useCallback((workflowId: string | null) => {
-    setSelectedWorkflowId(workflowId);
-  }, []);
-
+  const handleAgentModeToggle = useCallback(() => setIsAgentMode(prev => !prev), []);
+  const handleWorkflowChange = useCallback((workflowId: string | null) => setSelectedWorkflowId(workflowId), []);
   const hasOpenAIKey = availableProviders.includes('openai');
 
   const handleCheckout = useCallback(async () => {
@@ -71,21 +67,15 @@ const AppShell: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
-    if (isBillingLocked) {
-      setView('update-plan');
-    }
+    if (isBillingLocked) setView('update-plan');
   }, [isBillingLocked]);
 
-  // Close modals when user successfully authenticates
   useEffect(() => {
     if (token) {
       setIsLoginModalOpen(false);
@@ -97,7 +87,6 @@ const AppShell: React.FC = () => {
   useEffect(() => {
     const body = document.body;
     const html = document.documentElement;
-
     if (token) {
       body.style.overflow = 'hidden';
       body.style.height = '100vh';
@@ -109,7 +98,6 @@ const AppShell: React.FC = () => {
       html.style.overflow = 'auto';
       html.style.height = 'auto';
     }
-
     return () => {
       body.style.overflow = '';
       body.style.height = '';
@@ -130,12 +118,8 @@ const AppShell: React.FC = () => {
         const { data } = await api.get('/user/keys');
         const providers = (data.keys || []).map((k: any) => k.provider) as ('openai' | 'gemini' | 'claude')[];
         setAvailableProviders(providers);
-        
-        // If current provider is not available, switch to the first available one
         setProvider((currentProvider) => {
-          if (providers.length > 0 && !providers.includes(currentProvider)) {
-            return providers[0];
-          }
+          if (providers.length > 0 && !providers.includes(currentProvider)) return providers[0];
           return currentProvider;
         });
       } catch (e) {
@@ -146,7 +130,6 @@ const AppShell: React.FC = () => {
     fetchAvailableProviders();
   }, [token]);
 
-  // Reload providers and workflows when returning to chat (after possible change in Settings)
   useEffect(() => {
     if (token && view === 'chat') {
       const fetchAvailableProviders = async () => {
@@ -154,11 +137,8 @@ const AppShell: React.FC = () => {
           const { data } = await api.get('/user/keys');
           const providers = (data.keys || []).map((k: any) => k.provider) as ('openai' | 'gemini' | 'claude')[];
           setAvailableProviders(providers);
-          
           setProvider((currentProvider) => {
-            if (providers.length > 0 && !providers.includes(currentProvider)) {
-              return providers[0];
-            }
+            if (providers.length > 0 && !providers.includes(currentProvider)) return providers[0];
             return currentProvider;
           });
         } catch (e) {
@@ -166,30 +146,24 @@ const AppShell: React.FC = () => {
           setAvailableProviders([]);
         }
       };
-      
       const fetchWorkflows = async () => {
         try {
           const { data } = await api.get('/workflows');
           const wfs = data.workflows || [];
           setWorkflows(wfs);
-          
-          // Auto-select default workflow if none selected
           if (!selectedWorkflowId && wfs.length > 0) {
             const defaultWf = wfs.find((w: Workflow) => w.isDefault);
-            if (defaultWf) {
-              setSelectedWorkflowId(defaultWf.id);
-            }
+            if (defaultWf) setSelectedWorkflowId(defaultWf.id);
           }
         } catch (e) {
           console.error('Error fetching workflows:', e);
           setWorkflows([]);
         }
       };
-      
       fetchAvailableProviders();
       fetchWorkflows();
     }
-  }, [view, token]);
+  }, [view, token, selectedWorkflowId]);
 
   useEffect(() => {
     if (!token || !provider || availableProviders.length === 0) {
@@ -199,39 +173,13 @@ const AppShell: React.FC = () => {
     }
     const fetchModels = async () => {
       try {
-        const { data: modelResp } = await api.get('/models', {
-          params: { provider },
-        });
+        const { data: modelResp } = await api.get('/models', { params: { provider } });
         const modelList = modelResp.models || [];
-        if (modelList.length === 0) {
-          setModels([]);
-          setModel('');
-          console.warn('No models available from provider');
-          return;
-        }
         setModels(modelList);
         setModel(modelList[0] || '');
       } catch (e: any) {
-        // Handle different error cases
-        const status = e?.response?.status;
-        const errorData = e?.response?.data;
-        
         setModels([]);
         setModel('');
-        
-        if (status === 404) {
-          // API key not configured
-          console.info(`API key for ${provider} not configured. User needs to add it in Settings.`);
-        } else if (status === 401) {
-          // Invalid API key
-          console.warn(`Invalid API key for ${provider}:`, errorData?.message || e?.message);
-        } else if (status === 503) {
-          // Provider API error
-          console.warn(`Provider API error for ${provider}:`, errorData?.message || e?.message);
-        } else {
-          // Other errors
-          console.error('Error fetching models:', status, errorData?.error || errorData?.message || e?.message);
-        }
       }
     };
     fetchModels();
@@ -241,124 +189,37 @@ const AppShell: React.FC = () => {
     <>
       <LoginModal
         isOpen={isLoginModalOpen}
-        onClose={() => {
-          setIsLoginModalOpen(false);
-        }}
+        onClose={() => setIsLoginModalOpen(false)}
         onSwitch={(page) => {
-          if (page === 'register') {
-            setIsLoginModalOpen(false);
-            setIsRegisterModalOpen(true);
-          } else if (page === 'recover') {
-            setIsLoginModalOpen(false);
-            setIsRecoverModalOpen(true);
-          }
+          if (page === 'register') { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }
+          else if (page === 'recover') { setIsLoginModalOpen(false); setIsRecoverModalOpen(true); }
         }}
       />
       <RegisterModal
         isOpen={isRegisterModalOpen}
-        onClose={() => {
-          setIsRegisterModalOpen(false);
-        }}
+        onClose={() => setIsRegisterModalOpen(false)}
         onSwitch={(page) => {
-          if (page === 'login') {
-            setIsRegisterModalOpen(false);
-            setIsLoginModalOpen(true);
-          }
+          if (page === 'login') { setIsRegisterModalOpen(false); setIsLoginModalOpen(true); }
         }}
       />
       <RecoverPasswordModal
         isOpen={isRecoverModalOpen}
-        onClose={() => {
-          setIsRecoverModalOpen(false);
-        }}
+        onClose={() => setIsRecoverModalOpen(false)}
         onSwitch={(page) => {
-          if (page === 'login') {
-            setIsRecoverModalOpen(false);
-            setIsLoginModalOpen(true);
-          }
+          if (page === 'login') { setIsRecoverModalOpen(false); setIsLoginModalOpen(true); }
         }}
       />
     </>
   );
 
-  const showTrialCountdown =
-    plan === 'trial' &&
-    !!trialEndsAt &&
-    !isBillingLocked &&
-    new Date(trialEndsAt).getTime() > Date.now();
-
-  // Check if we're on special pages
-  const determineSpecialPage = () => {
-    const pathname = window.location.pathname;
-    const urlParams = new URLSearchParams(window.location.search);
-    const verifyToken = urlParams.get('token');
-
-    if (pathname === '/terms') return 'terms';
-    if (pathname === '/privacy') return 'privacy';
-    if (pathname === '/billing-success') return 'billing-success';
-    if (pathname === '/billing-cancel') return 'billing-cancel';
-    if (pathname === '/verify-email' || (pathname === '/' && verifyToken)) return 'verify-email';
-    if (pathname === '/reset-password') return 'reset-password';
-    return null;
-  };
-
-  const [showSpecialPage, setShowSpecialPage] = useState<string | null>(() => determineSpecialPage());
-  
-  useEffect(() => {
-    setShowSpecialPage(determineSpecialPage());
-
-    const handlePopState = () => {
-      setShowSpecialPage(determineSpecialPage());
-    };
-
-    // Also listen for pushstate events (when navigating programmatically)
-    const originalPushState = history.pushState;
-    history.pushState = function(...args) {
-      originalPushState.apply(history, args);
-      setShowSpecialPage(determineSpecialPage());
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      history.pushState = originalPushState;
-    };
-  }, []);
-
-  if (showSpecialPage === 'verify-email') {
-    return <VerifyEmail />;
-  }
-
-  if (showSpecialPage === 'reset-password') {
-    return <ResetPassword />;
-  }
-
-  if (showSpecialPage === 'billing-success') {
-    return <BillingSuccess />;
-  }
-
-  if (showSpecialPage === 'billing-cancel') {
-    return <BillingCancel />;
-  }
-
-  if (showSpecialPage === 'terms') {
-    return <Terms />;
-  }
-
-  if (showSpecialPage === 'privacy') {
-    return <Privacy />;
-  }
+  const showTrialCountdown = plan === 'trial' && !!trialEndsAt && !isBillingLocked && new Date(trialEndsAt).getTime() > Date.now();
 
   if (!token) {
     return (
       <>
         <Landing
-          onOpenLogin={() => {
-            setIsLoginModalOpen(true);
-          }}
-          onOpenRegister={() => {
-            setIsRegisterModalOpen(true);
-          }}
+          onOpenLogin={() => setIsLoginModalOpen(true)}
+          onOpenRegister={() => setIsRegisterModalOpen(true)}
         />
         {modals}
       </>
@@ -373,19 +234,15 @@ const AppShell: React.FC = () => {
           isLocked={isBillingLocked}
           onUpgrade={handleCheckout}
           onBack={isBillingLocked ? undefined : () => setView('chat')}
-          onGoHome={() => {
-            setView('chat');
-            logout();
-          }}
+          onGoHome={() => { setView('chat'); logout(); }}
         />
         {modals}
       </>
     );
   }
 
-  const isSettingsView = view === 'settings';
-  const containerClassName = `app-container-authenticated${isSettingsView ? ' settings-view' : ''}`;
-  const mainClassName = `main-authenticated${isSettingsView ? ' settings-view' : ''}`;
+  const containerClassName = `app-container-authenticated${view === 'settings' ? ' settings-view' : ''}`;
+  const mainClassName = `main-authenticated${view === 'settings' ? ' settings-view' : ''}`;
 
   return (
     <div className={containerClassName}>
@@ -408,8 +265,8 @@ const AppShell: React.FC = () => {
       <main className={mainClassName}>
         {view === 'chat' ? (
           <div style={{ display: 'flex', height: '100%', gap: 0, flexDirection: isMobile ? 'column' : 'row', overflow: 'visible', minHeight: 0 }}>
-            <ChatSidebar 
-              activeId={activeConversationId} 
+            <ChatSidebar
+              activeId={activeConversationId}
               onSelect={setActiveConversationId}
               model={model}
               onModelChange={setModel}
@@ -421,8 +278,8 @@ const AppShell: React.FC = () => {
             />
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
               {availableProviders.length > 0 && (
-                <div style={{ 
-                  padding: isMobile ? '10px 16px' : '12px 20px', 
+                <div style={{
+                  padding: isMobile ? '10px 16px' : '12px 20px',
                   borderBottom: '1px solid var(--color-border)',
                   background: 'var(--color-surface)',
                   display: 'flex',
@@ -432,8 +289,8 @@ const AppShell: React.FC = () => {
                   position: 'relative',
                   zIndex: 10
                 }}>
-                  <ProviderSelector 
-                    provider={provider} 
+                  <ProviderSelector
+                    provider={provider}
                     onChange={(p) => setProvider(p)}
                     availableProviders={availableProviders}
                     isAgentMode={isAgentMode}
@@ -447,20 +304,20 @@ const AppShell: React.FC = () => {
               )}
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                 {isAgentMode && selectedWorkflowId ? (
-                  <ChatKitAgent 
+                  <ChatKitAgent
                     workflowId={selectedWorkflowId}
                     conversationId={activeConversationId}
                     onConversationChange={setActiveConversationId}
                   />
                 ) : (
-                  <Chat 
-                    provider={provider} 
-                    model={model} 
-                    conversationId={activeConversationId} 
-                    onConversationChange={setActiveConversationId} 
+                  <Chat
+                    provider={provider}
+                    model={model}
+                    conversationId={activeConversationId}
+                    onConversationChange={setActiveConversationId}
                     isAgentMode={false}
                     selectedWorkflowId={null}
-                    activeProjectId={activeProjectId} 
+                    activeProjectId={activeProjectId}
                   />
                 )}
               </div>
@@ -470,18 +327,78 @@ const AppShell: React.FC = () => {
           <Settings onBackToChat={() => setView('chat')} />
         )}
       </main>
-
       {modals}
     </div>
   );
 };
 
+const PublicRoutes: React.FC = () => {
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
+  const [isRecoverModalOpen, setIsRecoverModalOpen] = useState(false);
+
+  return (
+    <>
+      <Routes>
+        <Route path="/" element={
+          <Landing
+            onOpenLogin={() => setIsLoginModalOpen(true)}
+            onOpenRegister={() => setIsRegisterModalOpen(true)}
+          />
+        } />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/billing-success" element={<BillingSuccess />} />
+        <Route path="/billing-cancel" element={<BillingCancel />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
+      </Routes>
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSwitch={(page) => {
+          if (page === 'register') { setIsLoginModalOpen(false); setIsRegisterModalOpen(true); }
+          else if (page === 'recover') { setIsLoginModalOpen(false); setIsRecoverModalOpen(true); }
+        }}
+      />
+      <RegisterModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        onSwitch={(page) => {
+          if (page === 'login') { setIsRegisterModalOpen(false); setIsLoginModalOpen(true); }
+        }}
+      />
+      <RecoverPasswordModal
+        isOpen={isRecoverModalOpen}
+        onClose={() => setIsRecoverModalOpen(false)}
+        onSwitch={(page) => {
+          if (page === 'login') { setIsRecoverModalOpen(false); setIsLoginModalOpen(true); }
+        }}
+      />
+    </>
+  );
+};
+
 const App: React.FC = () => (
-  <ThemeProvider>
-    <AuthProvider>
-      <AppShell />
-    </AuthProvider>
-  </ThemeProvider>
+  <ErrorBoundary>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/*" element={<PublicRoutes />} />
+            <Route path="/app/*" element={<AuthenticatedLayout />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/billing-success" element={<BillingSuccess />} />
+            <Route path="/billing-cancel" element={<BillingCancel />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
+  </ErrorBoundary>
 );
 
 export default App;
