@@ -48,7 +48,7 @@ describe('Auth Middleware', () => {
       requireAuth(req, res, mockNext);
       
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'missing token' });
+      expect(res.json).toHaveBeenCalledWith({ error: 'not authenticated' });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -66,7 +66,7 @@ describe('Auth Middleware', () => {
       requireAuth(req, res, mockNext);
       
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'invalid token format' });
+      expect(res.json).toHaveBeenCalledWith({ error: 'not authenticated' });
       expect(mockNext).not.toHaveBeenCalled();
     });
 
@@ -95,7 +95,7 @@ describe('Auth Middleware', () => {
       
       const { requireAuth } = await import('../middleware/auth');
       
-      const payload = { userId: 'user-123' };
+      const payload = { sub: 'user-123', sig: 'test-access-signature' };
       const token = jwt.sign(payload, 'test-jwt-secret');
       
       const req = mockRequest({ authorization: `Bearer ${token}` });
@@ -115,7 +115,7 @@ describe('Auth Middleware', () => {
       
       const { requireAuth } = await import('../middleware/auth');
       
-      const payload = { userId: 'user-123' };
+      const payload = { sub: 'user-123' };
       const token = jwt.sign(payload, 'test-jwt-secret', { expiresIn: '1h' });
       
       const req = mockRequest({ authorization: `Bearer ${token}` });
@@ -124,68 +124,117 @@ describe('Auth Middleware', () => {
       requireAuth(req, res, mockNext);
       
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({ error: 'invalid token' });
+      expect(res.json).toHaveBeenCalledWith({ error: 'invalid token signature' });
     });
   });
 
   describe('enforceActiveSubscription', () => {
-    it('should return 403 when user is in trial and trial has ended', async () => {
+    let mockGetSubscriptionSummary: jest.Mock;
+    let mockIsSubscriptionActive: jest.Mock;
+    let mockSubscriptionToResponse: jest.Mock;
+
+    beforeEach(async () => {
       jest.resetModules();
       
+      mockGetSubscriptionSummary = jest.fn();
+      mockIsSubscriptionActive = jest.fn();
+      mockSubscriptionToResponse = jest.fn();
+      
+      jest.mock('../services/subscriptionService', () => ({
+        getSubscriptionSummary: mockGetSubscriptionSummary,
+        isSubscriptionActive: mockIsSubscriptionActive,
+        subscriptionToResponse: mockSubscriptionToResponse,
+      }));
+    });
+
+    it('should return 403 when user is in trial and trial has ended', async () => {
       const { enforceActiveSubscription } = await import('../middleware/subscription');
       
-      const expiredTrialDate = new Date(Date.now() - 86400000).toISOString();
+      mockGetSubscriptionSummary.mockResolvedValue({
+        planCode: 'TRIAL',
+        status: 'TRIALING',
+        provider: 'INTERNAL',
+        trialEndsAt: new Date(Date.now() - 86400000),
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      mockIsSubscriptionActive.mockReturnValue(false);
+      mockSubscriptionToResponse.mockReturnValue({
+        plan: 'trial',
+        subscriptionStatus: 'trialing',
+        trialEndsAt: new Date(Date.now() - 86400000).toISOString(),
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      
       const req = mockRequest({});
       (req as any).userId = 'user-123';
-      (req as any).user = {
-        plan: 'trial',
-        trialEndsAt: expiredTrialDate,
-        isBillingLocked: false,
-      };
       const res = mockResponse();
       
-      enforceActiveSubscription(req, res, mockNext);
+      await enforceActiveSubscription(req, res, mockNext);
       
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({ error: 'Trial expired' });
+      expect(res.status).toHaveBeenCalledWith(402);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ 
+        error: 'subscription_required',
+        redirect: '/update-plan'
+      }));
       expect(mockNext).not.toHaveBeenCalled();
     });
 
     it('should call next() when user has active pro subscription', async () => {
-      jest.resetModules();
-      
       const { enforceActiveSubscription } = await import('../middleware/subscription');
+      
+      mockGetSubscriptionSummary.mockResolvedValue({
+        planCode: 'PRO',
+        status: 'ACTIVE',
+        provider: 'STRIPE',
+        trialEndsAt: null,
+        currentPeriodEnd: new Date(Date.now() + 86400000),
+        cancelAtPeriodEnd: false,
+      });
+      mockIsSubscriptionActive.mockReturnValue(true);
+      mockSubscriptionToResponse.mockReturnValue({
+        plan: 'pro',
+        subscriptionStatus: 'active',
+        trialEndsAt: null,
+        currentPeriodEnd: new Date(Date.now() + 86400000).toISOString(),
+        cancelAtPeriodEnd: false,
+      });
       
       const req = mockRequest({});
       (req as any).userId = 'user-123';
-      (req as any).user = {
-        plan: 'pro',
-        trialEndsAt: null,
-        isBillingLocked: false,
-      };
       const res = mockResponse();
       
-      enforceActiveSubscription(req, res, mockNext);
+      await enforceActiveSubscription(req, res, mockNext);
       
       expect(mockNext).toHaveBeenCalled();
     });
 
     it('should call next() when user is in active trial', async () => {
-      jest.resetModules();
-      
       const { enforceActiveSubscription } = await import('../middleware/subscription');
       
-      const futureTrialDate = new Date(Date.now() + 86400000).toISOString();
+      mockGetSubscriptionSummary.mockResolvedValue({
+        planCode: 'TRIAL',
+        status: 'TRIALING',
+        provider: 'INTERNAL',
+        trialEndsAt: new Date(Date.now() + 86400000),
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      mockIsSubscriptionActive.mockReturnValue(true);
+      mockSubscriptionToResponse.mockReturnValue({
+        plan: 'trial',
+        subscriptionStatus: 'trialing',
+        trialEndsAt: new Date(Date.now() + 86400000).toISOString(),
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      });
+      
       const req = mockRequest({});
       (req as any).userId = 'user-123';
-      (req as any).user = {
-        plan: 'trial',
-        trialEndsAt: futureTrialDate,
-        isBillingLocked: false,
-      };
       const res = mockResponse();
       
-      enforceActiveSubscription(req, res, mockNext);
+      await enforceActiveSubscription(req, res, mockNext);
       
       expect(mockNext).toHaveBeenCalled();
     });

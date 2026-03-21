@@ -69,6 +69,6 @@
       "!src/server.ts"
     ],
     "coverageDirectory": "coverage",
-    "setupFilesAfterEnv": ["<rootDir>/src/__tests__/setup.ts"]
+    "setupFilesAfterEnv": ["<rootDir>/jest.setup.ts"]
   }
 }

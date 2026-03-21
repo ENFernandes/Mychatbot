@@ -1,11 +1,24 @@
-// Vitest setup file
-// This file is automatically loaded before all tests
+import { expect, afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import * as matchers from '@testing-library/jest-dom/matchers';
 
-// Mock fetch globally
+expect.extend(matchers);
+
+declare module 'vitest' {
+  interface Assertion<T> {
+    toBeInTheDocument(): T;
+    toHaveTextContent(text: string | RegExp): T;
+    toHaveAttribute(attr: string, value?: string): T;
+  }
+}
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock localStorage
+afterEach(() => {
+  cleanup();
+});
+
 Object.defineProperty(window, 'localStorage', {
   value: {
     getItem: () => null,
@@ -16,7 +29,6 @@ Object.defineProperty(window, 'localStorage', {
   writable: true,
 });
 
-// Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   value: () => ({
     matches: false,

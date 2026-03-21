@@ -1,5 +1,3 @@
-import { jest } from '@jest/globals';
-
 jest.setTimeout(30000);
 
 process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing-only';
